@@ -1,21 +1,17 @@
 from py_clob_client.client import ClobClient
+import os
 
-# host: str = ""
-# key: str = ""
-# chain_id: int = 137
+HOST = os.environ['HOST']
+print(HOST)
+CHAIN_ID = 137
+PRIVATE_KEY = "<your-private-key>"
+PROXY_FUNDER = "<your-proxy-or-smart-wallet-address>"  # Address that holds your funds
 
-# ### Initialization of a client that trades directly from an EOA
-# client = ClobClient(host, key=key, chain_id=chain_id)
-
-# ### Initialization of a client using a Polymarket Proxy associated with an Email/Magic account
-# client = ClobClient(host, key=key, chain_id=chain_id, signature_type=1, funder=POLYMARKET_PROXY_ADDRESS)
-
-# ### Initialization of a client using a Polymarket Proxy associated with a Browser Wallet(Metamask, Coinbase Wallet, etc)
-# client = ClobClient(host, key=key, chain_id=chain_id, signature_type=2, funder=POLYMARKET_PROXY_ADDRESS)
-
-
-client = ClobClient("https://clob.polymarket.com")  # Level 0 (no auth)
-
-ok = client.get_ok()
-time = client.get_server_time()
-print(ok, time)
+client = ClobClient(
+    HOST,  # The CLOB API endpoint
+    key=PRIVATE_KEY,  # Your wallet's private key
+    chain_id=CHAIN_ID,  # Polygon chain ID (137)
+    signature_type=1,  # 1 for email/Magic wallet signatures
+    funder=PROXY_FUNDER  # Address that holds your funds
+)
+client.set_api_creds(client.create_or_derive_api_creds())
