@@ -54,7 +54,7 @@ struct eip_712 {
 };
 
 void polymarket_api_key_auth_init(CURL* handler) {
-    boost::process::basic_environment env = ; 
+    boost::process::basic_environment env = boost::process::env();
     
     std::vector<type_element> clobAuthTypes = {
         {"address", "address"},
