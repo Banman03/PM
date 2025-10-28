@@ -1,17 +1,13 @@
-// #include <boost/thread.hpp>;
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/ssl.hpp>
+#include <boost/beast/ssl.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl.hpp>
 #include <stdlib.h>
 #include <string>
-// #include <vector>
 #include <iostream>
-
-#include <boost/beast.hpp>
-#include <boost/asio.hpp>
-#include <boost/beast/ssl.hpp>
-#include <boost/beast/websocket/ssl.hpp>
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
@@ -47,7 +43,6 @@ int main(int argc, char** argv) {
     get_lowest_layer(wss).connect(results);
 
     wss.next_layer().handshake(net::ssl::stream_base::client);
-    std::cout << "here3" << std::endl;
     wss.handshake(host, "/ws");
     response_type response;
     wss.next_layer().handshake(net::ssl::stream_base::client);
@@ -57,9 +52,6 @@ int main(int argc, char** argv) {
     flat_buffer fb;
 
     wss.read(fb);
-
-    std::cout
-        << "reading: " << beast::make_printable(fb.data()) << std::endl;
 
     wss.close(websocket::close_code::normal);
 
