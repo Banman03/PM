@@ -49,20 +49,17 @@ int main(int argc, char** argv) {
     wss.next_layer().handshake(net::ssl::stream_base::client);
     std::cout << "here3" << std::endl;
     wss.handshake(host, "/ws");
-    // response_type response;
+    response_type response;
+    wss.next_layer().handshake(net::ssl::stream_base::client);
 
-    // wss.next_layer().handshake(net::ssl::stream_base::client);
+    wss.write(net::buffer(std::string(message)));
 
-    // net::mutable_buffer b(message, sizeof(message));
-    // wss.write_some(b);
+    flat_buffer fb;
 
-    // flat_buffer fb;
-    
-    // wss.read_some(fb);
+    wss.read(fb);
 
-    // std::string s(net::buffers_begin(fb.data()), net::buffers_end(fb.data()));
-    // std::cout
-        // << "reading: " << s << std::endl;
+    std::cout
+        << "reading: " << beast::make_printable(fb.data()) << std::endl;
 
     wss.close(websocket::close_code::normal);
 
