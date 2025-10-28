@@ -15,8 +15,6 @@
 
 namespace net = boost::asio;
 namespace beast = boost::beast;
-namespace ssl = net::ssl;
-namespace ip = net::ip;
 using namespace boost::beast;
 using namespace boost::beast::websocket;
 
@@ -28,31 +26,45 @@ int main(int argc, char** argv) {
 
     net::io_context ioc;
     tcp_stream sock(ioc);
-    net::ssl::context ctx(net::ssl::context::tlsv12);
-    stream<ssl_stream<tcp_stream>> wss(net::make_strand(ioc), ctx);
+    net::ssl::context ctx(net::ssl::context::tlsv12_client);
+    ctx.set_default_verify_paths();
+    ctx.set_verify_mode(net::ssl::verify_peer);
+    websocket::stream<ssl_stream<tcp_stream>> wss(ioc, ctx);
+
+    if (!SSL_set_tlsext_host_name(
+            wss.next_layer().native_handle(),
+            host.c_str()))
+    {
+        throw beast::system_error(
+            beast::error_code(
+                static_cast<int>(::ERR_get_error()),
+                net::error::get_ssl_category()),
+            "Failed to set SNI hostname");
+    }
 
     net::ip::tcp::resolver resolver(ioc);
     auto results = resolver.resolve(host, port);
     get_lowest_layer(wss).connect(results);
 
+    wss.next_layer().handshake(net::ssl::stream_base::client);
     std::cout << "here3" << std::endl;
-    response_type response;
+    wss.handshake(host, "/ws");
+    // response_type response;
 
-    wss.handshake(response, host, "/");
+    // wss.next_layer().handshake(net::ssl::stream_base::client);
 
-    net::mutable_buffer b(message, sizeof(message));
-    wss.write(b);
+    // net::mutable_buffer b(message, sizeof(message));
+    // wss.write_some(b);
 
-    flat_buffer fb;
+    // flat_buffer fb;
     
-    wss.read(fb);
+    // wss.read_some(fb);
 
-    std::string s(net::buffers_begin(fb.data()), net::buffers_end(fb.data()));
-    std::cout
-        << "reading: " << s << std::endl;
+    // std::string s(net::buffers_begin(fb.data()), net::buffers_end(fb.data()));
+    // std::cout
+        // << "reading: " << s << std::endl;
 
-    wss.close(beast::websocket::close_code::normal);
+    wss.close(websocket::close_code::normal);
 
-    
     return 0;
 }
