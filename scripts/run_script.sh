@@ -3,4 +3,4 @@ set -e
 
 make
 
-./build/main echo.websocket.org 443 "hi"
+./build/main ws-subscriptions-clob.polymarket.com 443 "hi"

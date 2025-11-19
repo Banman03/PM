@@ -43,15 +43,14 @@ int main(int argc, char** argv) {
     get_lowest_layer(wss).connect(results);
 
     wss.next_layer().handshake(net::ssl::stream_base::client);
-    wss.handshake(host, "/ws");
-    response_type response;
-    wss.next_layer().handshake(net::ssl::stream_base::client);
-
-    wss.write(net::buffer(std::string(message)));
-
-    flat_buffer fb;
-
-    wss.read(fb);
+    wss.handshake(host, "/ws/market");
+    // response_type response;
+// 
+    // wss.write(net::buffer(std::string(message)));
+// 
+    // flat_buffer fb;
+// 
+    // wss.read(fb);
 
     wss.close(websocket::close_code::normal);
 
