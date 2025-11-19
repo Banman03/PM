@@ -4,7 +4,7 @@ WARN := -Wall
 LDFLAGS := -lboost_system -lssl -lcrypto -lpthread
 
 TARGET := main
-SRC := gamma-connection/main.cpp
+SRC := cpp-client/main.cpp
 BUILD_DIR := build
 OUT := $(BUILD_DIR)/$(TARGET)
 
