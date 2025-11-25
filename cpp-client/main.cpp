@@ -9,6 +9,7 @@
 #include <string>
 #include <iostream>
 
+
 namespace net = boost::asio;
 namespace beast = boost::beast;
 using namespace boost::beast;
@@ -22,7 +23,7 @@ int main(int argc, char** argv) {
     }
 
     std::string asset_id = argv[1];
-    std::string host = "wss://ws-subscriptions-clob.polymarket.com";
+    std::string host = /*"echo.websocket.org";*/"ws-subscriptions-clob.polymarket.com";
     std::string port = "443";
 
     try {
@@ -53,7 +54,7 @@ int main(int argc, char** argv) {
         wss.next_layer().handshake(net::ssl::stream_base::client);
 
         std::cout << "Performing WebSocket handshake...\n";
-        wss.handshake(host, "/ws/");
+        wss.handshake(host, "/wss/");
 
         std::string subscription_msg = "market " + asset_id;
         std::cout << "Subscribing to market channel with message: " << subscription_msg << "\n";

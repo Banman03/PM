@@ -1,5 +1,5 @@
 CXX := g++
-CXXSTD := -std=c++20
+CXXSTD := -std=c++23
 WARN := -Wall
 LDFLAGS := -lboost_system -lssl -lcrypto -lpthread
 

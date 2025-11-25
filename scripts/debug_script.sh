@@ -5,4 +5,4 @@ set -e
 make debug
 
 # Run gdb with program arguments properly set
-gdb --args ./build/main echo.websocket.org 443 "hi"
+gdb --args ./build/main 1764087109596 443 "hi"
