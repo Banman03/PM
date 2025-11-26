@@ -223,7 +223,7 @@ class OrderBookPoller:
 
         for asset_id in self.asset_ids:
             file_path = f"data/order-books/{asset_id}.jsonl"
-            self.file_dict[asset_id] = open(file_path, "w")
+            self.file_dict[asset_id] = open(file_path, "a")
             print(f"Created file for asset {asset_id}")
 
     def get_order_book(self, token_id: str) -> Dict[str, Any]:
