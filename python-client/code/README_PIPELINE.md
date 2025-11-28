@@ -325,18 +325,6 @@ code/
 
 ---
 
-## Citation
-
-If you use this pipeline in your research, please cite:
-
-```
-[Your paper title and citation will go here after publication]
-```
-
----
-
 ## Questions?
 
 For implementation details, see `MATHEMATICAL_FRAMEWORK.md`.
-
-For issues or bugs, contact [your email or GitHub].
