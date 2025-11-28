@@ -154,7 +154,7 @@ def file_exists(filename: str):
         return None
 
 def get_markets(offset: int = 0, closed: bool = None,
-                volume_min: int = 1_000_000, liquidity_min: int = 1_000_000) -> List[Dict[str, Any]]:
+                volume_min: int = 0, liquidity_min: int = 0) -> List[Dict[str, Any]]:
     """
     Fetch markets from Polymarket API using requests
 
@@ -170,10 +170,16 @@ def get_markets(offset: int = 0, closed: bool = None,
     api_url = "https://gamma-api.polymarket.com/markets"
     print(f"Fetching markets from {api_url}...")
 
+    slugs = ["nfl-chi-phi-2025-11-28", "cfb-iowa-nebr-2025-11-28", "cfb-kentst-nill-2025-11-28", "cfb-ohio-buf-2025-11-28", "cfb-utah-kan-2025-11-28", "cfb-miss-mspst-2025-11-28", "cfb-airf-colst-2025-11-28",
+            "nba-orl-det-2025-11-28", "nba-phi-bkn-2025-11-28", "nba-cle-atl-2025-11-28", "nba-chi-cha-2025-11-28", "nba-mil-nyk-2025-11-28", "nba-was-ind-2025-11-28"]
+
     params = {
         "offset": offset,
         "volume_num_min": volume_min,
-        "liquidity_num_min": liquidity_min
+        "liquidity_num_min": liquidity_min,
+        "order": "liquidity",
+        "ascending": "false",
+        "slug": slugs
     }
 
     if closed is not None:
@@ -250,7 +256,6 @@ def get_assets(markets: List) -> tuple[List, Dict[str, str]]:
                 asset_to_question[asset_id] = sanitize_filename(question)
 
     market_asset_ids = np.array(market_asset_ids)
-    print("market asset ids: ", market_asset_ids)
     return market_asset_ids.flatten(), asset_to_question
 class OrderBookPoller:
     """REST API poller for order book depth data"""
@@ -403,8 +408,8 @@ def main():
 
         clob_token_ids, asset_id_to_question = get_assets(markets)
 
-        print(f"Asset IDs: {clob_token_ids}")
-
+        # print(f"Asset IDs: {clob_token_ids}")
+        # return
         print("\n" + "=" * 80)
         if args.mode == MODE_WEBSOCKET:
             print("Step 3: Starting WebSocket client (Mode 0)")
