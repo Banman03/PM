@@ -2,17 +2,17 @@
 
 ## Overview
 
-This pipeline estimates parameters of a differential equation model for prediction market liquidity using only order book snapshot data. The model relates liquidity ℓ(τ) to trading intensity I(τ) and bid-ask spread R(τ) as a function of time-to-resolution τ.
+This pipeline estimates parameters of a differential equation model for prediction market liquidity using only order book snapshot data. The model relates liquidity _liq__(_tau_) to trading intensity I(_tau_) and bid-ask spread R(_tau_) as a function of time-to-resolution _tau_.
 
 **Model equation (linear version):**
 ```
-dℓ/dτ = a·I(τ) - b·R(τ) + c·ℓ(τ)
+d_liq__/d_tau_ = a·I(_tau_) - b·R(_tau_) + c·_liq__(_tau_)
 ```
 
 where:
-- **ℓ(τ)**: Liquidity (price impact per share, $/share)
-- **I(τ)**: Trading intensity (shares/second)
-- **R(τ)**: Bid-ask spread ($)
+- **_liq__(_tau_)**: Liquidity (price impact per share, $/share)
+- **I(_tau_)**: Trading intensity (shares/second)
+- **R(_tau_)**: Bid-ask spread ($)
 - **a, b, c**: Parameters to be estimated from data
 
 ## Data Requirements
@@ -100,7 +100,7 @@ Each market (more specifically, asset) requires two files:
 |----------|------|---------|-------------|
 | `--trade-size` | float | 1.0 | Simulated trade size (shares) for liquidity estimation via price impact |
 | `--output-dir` | string | `results/` | Directory where all outputs (plots, CSVs, fitted parameters) will be saved |
-| `--n-grid-points` | integer | 500 | Number of points in the regular τ (time-to-resolution) grid for resampling |
+| `--n-grid-points` | integer | 500 | Number of points in the regular _tau_ (time-to-resolution) grid for resampling |
 | `--smooth-window` | integer | 3 | Window size for moving-average smoothing of I and R |
 | `--model-type` | choice | `linear` | Model type: `linear` or `bounded` (bounded includes saturation/floor terms) |
 | `--n-bootstrap` | integer | 100 | Number of bootstrap samples for confidence intervals |
@@ -115,18 +115,18 @@ Each market (more specifically, asset) requires two files:
 - Loads CSV and JSONL files
 - For each snapshot, computes:
   - **R(t)**: Bid-ask spread = `best_ask - best_bid`
-  - **ℓ(t)**: Liquidity via **price impact simulation**:
+  - **_liq__(t)**: Liquidity via **price impact simulation**:
     - Simulates executing a trade of size `trade_size`
     - Walks the order book (bids for sell, asks for buy)
     - Computes volume-weighted average execution price
-    - ℓ = (execution_price - mid_price) / trade_size
+    - _liq__ = (execution_price - mid_price) / trade_size
   - **I(t)**: Trading intensity via **depth-change proxy**:
     - I = |Δ(top5_depth)| / Δt
     - Measures how quickly depth is removed (proxy for trading)
 
-### Step 2: Convert to τ and Resample
-- Converts calendar time `t` to time-to-resolution `τ = T - t`
-- Resamples observables onto a **regular grid** in τ (default: 500 points)
+### Step 2: Convert to _tau_ and Resample
+- Converts calendar time `t` to time-to-resolution `_tau_ = T - t`
+- Resamples observables onto a **regular grid** in _tau_ (default: 500 points)
 - Applies light smoothing (moving average) to reduce noise
 
 ### Step 3: Train-Test Split
@@ -136,7 +136,7 @@ Each market (more specifically, asset) requires two files:
 ### Step 4: Fit Model Parameters
 - Uses **Method B (trajectory fit)**:
   - For candidate parameters (a, b, c), numerically integrate the ODE
-  - Compare integrated trajectory to observed ℓ(τ)
+  - Compare integrated trajectory to observed _liq__(_tau_)
   - Minimize squared residuals
 - Runs **multiple random restarts** to avoid local minima
 - Computes **AIC/BIC** for model selection
@@ -144,7 +144,7 @@ Each market (more specifically, asset) requires two files:
 ### Step 5: Generate Predictions
 - Integrates the fitted ODE on both train and test sets
 - Computes goodness-of-fit metrics:
-  - R² (coefficient of determination)
+  - R^2 (coefficient of determination)
   - RMSE (root mean squared error)
   - MAE (mean absolute error)
   - MAPE (mean absolute percentage error)
@@ -161,9 +161,9 @@ Each market (more specifically, asset) requires two files:
 
 ### Step 7: Generate Plots
 Creates publication-quality figures:
-1. **Observables time series**: R(τ), ℓ(τ), I(τ)
+1. **Observables time series**: R(_tau_), _liq__(_tau_), I(_tau_)
 2. **Model vs. observed**: Overlay of predictions and data (train/test)
-3. **Scatter plot**: Observed vs. predicted ℓ with 45° line
+3. **Scatter plot**: Observed vs. predicted _liq__ with 45° line
 4. **Residuals plot**: Residuals vs. time
 5. **Residual diagnostics**: 4-panel (histogram, Q-Q, ACF, residuals vs. fitted)
 6. **Bootstrap distributions**: Parameter uncertainty histograms
@@ -178,8 +178,8 @@ All outputs are saved to `--output-dir` (default: `results/`):
 ### CSV Files
 | File | Description |
 |------|-------------|
-| `observables.csv` | Full time series of R, ℓ, I for each snapshot |
-| `grid.csv` | Resampled and smoothed data on regular τ grid |
+| `observables.csv` | Full time series of R, _liq__, I for each snapshot |
+| `grid.csv` | Resampled and smoothed data on regular _tau_ grid |
 | `bootstrap_results.csv` | Bootstrap parameter samples (if not skipped) |
 | `confidence_intervals.csv` | 95% CI for each parameter (if not skipped) |
 | `sensitivity_trade_size.csv` | Parameter estimates for different trade sizes (if not skipped) |
@@ -192,7 +192,7 @@ All outputs are saved to `--output-dir` (default: `results/`):
 ### Plots (PNG)
 | File | Description |
 |------|-------------|
-| `fig_observables_timeseries.png` | 3-panel time series of R, ℓ, I |
+| `fig_observables_timeseries.png` | 3-panel time series of R, _liq__, I |
 | `fig_model_vs_observed.png` | Model predictions overlaid on data |
 | `fig_scatter_obs_vs_pred.png` | Scatter plot with 45° reference |
 | `fig_residuals.png` | Residuals vs. time |
@@ -216,7 +216,7 @@ python pipeline.py \
 ```
 **Time**: ~30 seconds
 
-### Full Analysis (Publication-Ready)
+### Full Analysis
 ```bash
 python pipeline.py \
   --csv data/market1.csv \
@@ -247,18 +247,17 @@ python pipeline.py \
 
 ### Parameter Meanings
 
-After fitting, you'll get estimates for:
+After fitting, you'll have estimates for:
 
 | Parameter | Interpretation | Expected Sign |
 |-----------|----------------|---------------|
-| **a** | How much trading intensity *increases* liquidity | a > 0 (more trading → more liquidity) |
-| **b** | How much bid-ask spread *reduces* liquidity growth | b > 0 (wider spreads → less liquidity) |
+| **a** | How much trading intensity increases liquidity | a > 0 (more trading -> more liquidity) |
+| **b** | How much bid-ask spread reduces liquidity growth | b > 0 (wider spreads -> less liquidity) |
 | **c** | Exponential growth/decay rate | c < 0 (liquidity decays without forcing) or c > 0 (momentum) |
 
 ### Goodness-of-Fit Benchmarks
-- **R² > 0.7**: Good fit
-- **R² > 0.9**: Excellent fit
-- **Test R² close to Train R²**: Model generalizes well (not overfitting)
+- **R^2 > 0.7**: Good fit
+- **R^2 > 0.9**: Excellent fit
 
 ### Diagnostic Tests (p-values)
 - **Ljung-Box p > 0.05**: Residuals are uncorrelated ✓ (good)
@@ -281,7 +280,7 @@ After fitting, you'll get estimates for:
 - **Cause**: Parameters are unrealistic (e.g., causing liquidity to blow up)
 - **Fix**: Check bounds in `estimation.py`, or use `--model-type bounded`
 
-### Liquidity ℓ is always NaN
+### Liquidity _liq__ is always NaN
 - **Cause**: Order book doesn't have enough depth to fill `trade_size`
 - **Fix**: Reduce `--trade-size` (try 0.1 or 0.01)
 
@@ -314,12 +313,12 @@ pip install -r requirements.txt
 ```
 code/
 ├── pipeline.py                 # Main end-to-end script
-├── observables.py              # Compute R, ℓ, I from order book
+├── observables.py              # Compute R, _liq__, I from order book
 ├── model.py                    # ODE definitions and integration
 ├── estimation.py               # Parameter fitting (Method A & B)
 ├── validation.py               # Diagnostics, bootstrap, train-test split
 ├── plotting.py                 # Publication-quality plots
-├── process_clob_data.py        # Convert JSONL → CSV (preprocessing)
+├── process_clob_data.py        # Convert JSONL -> CSV (preprocessing)
 ├── MATHEMATICAL_FRAMEWORK.md   # Full mathematical derivation
 └── README_PIPELINE.md          # This file
 ```
