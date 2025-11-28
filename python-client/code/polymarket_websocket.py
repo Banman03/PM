@@ -14,6 +14,7 @@ import threading
 import time
 import os
 import argparse
+import numpy as np
 
 MARKET_CHANNEL = "market"
 USER_CHANNEL = "user"
@@ -198,33 +199,93 @@ def get_markets(offset: int = 0, closed: bool = None,
         print(f"ERROR: Request failed: {e}")
         return []
 
+def sanitize_filename(text: str, max_length: int = 100) -> str:
+    """
+    Convert text to filesystem-safe filename
 
+    Args:
+        text: Input text (e.g., question)
+        max_length: Maximum filename length
+
+    Returns:
+        Sanitized filename string
+    """
+    sanitized = text.replace('/', '_').replace('\\', '_').replace(':', '_')
+    sanitized = sanitized.replace('?', '').replace('*', '_').replace('"', '')
+    sanitized = sanitized.replace('<', '_').replace('>', '_').replace('|', '_')
+
+    sanitized = sanitized.replace(' ', '_')
+    sanitized = '_'.join(filter(None, sanitized.split('_')))  # Remove multiple underscores
+
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length]
+
+    return sanitized
+
+def get_assets(markets: List) -> tuple[List, Dict[str, str]]:
+    """
+    Extract asset IDs and create mapping to market questions
+
+    Args:
+        markets: List of market dictionaries
+
+    Returns:
+        Tuple of (flattened asset IDs, dict mapping asset_id -> question)
+    """
+    market_asset_ids = []
+    asset_to_question = {}
+
+    for market in markets:
+        question = market.get("question", "Unknown_Market")
+        asset_ids = json.loads(market["clobTokenIds"])
+        market_asset_ids.append(asset_ids)
+
+        for asset_id in asset_ids:
+            outcomes = market.get("outcomes", [])
+            if len(asset_ids) > 1 and len(outcomes) == len(asset_ids):
+                idx = asset_ids.index(asset_id)
+                question_with_outcome = f"{question}_{outcomes[idx]}"
+                asset_to_question[asset_id] = sanitize_filename(question_with_outcome)
+            else:
+                asset_to_question[asset_id] = sanitize_filename(question)
+
+    market_asset_ids = np.array(market_asset_ids)
+    print("market asset ids: ", market_asset_ids)
+    return market_asset_ids.flatten(), asset_to_question
 class OrderBookPoller:
     """REST API poller for order book depth data"""
 
     CLOB_API = "https://clob.polymarket.com"
 
-    def __init__(self, asset_ids: List[str], poll_interval: int = 10):
+    def __init__(self, asset_ids: List[str], asset_to_question: Dict[str, str] = None, poll_interval: int = 10):
         """
         Initialize the order book poller
 
         Args:
             asset_ids: List of token IDs to poll
+            asset_to_question: Dict mapping asset_id -> question name (optional)
             poll_interval: Seconds between polls (default: 10)
         """
         self.asset_ids = asset_ids
+        self.asset_to_question = asset_to_question or {}
         self.poll_interval = poll_interval
         self.running = True
         self.file_dict = {}
 
     def create_asset_files(self):
         """Create data files for each asset"""
-        os.makedirs("data/order-books", exist_ok=True)
+        os.makedirs("data/order-books/jsons", exist_ok=True)
 
         for asset_id in self.asset_ids:
-            file_path = f"data/order-books/{asset_id}.jsonl"
+            if asset_id in self.asset_to_question:
+                question_name = self.asset_to_question[asset_id]
+                file_path = f"data/order-books/jsons/{question_name}_{asset_id}.jsonl"
+                print(f"Created file for asset {asset_id}: {question_name}")
+            else:
+                file_path = f"data/order-books/jsons/{asset_id}.jsonl"
+                print(f"Created file for asset {asset_id}")
+
             self.file_dict[asset_id] = open(file_path, "a")
-            print(f"Created file for asset {asset_id}")
 
     def get_order_book(self, token_id: str) -> Dict[str, Any]:
         """
@@ -333,17 +394,15 @@ def main():
 
         print(f"\nFetched {len(markets)} markets")
         print("\nSample markets:")
-        for i, market in enumerate(markets[:3]):
+        for i, market in enumerate(markets):
             print(f"{i+1}. {market.get('question', 'Unknown')}")
 
         print("\n" + "=" * 80)
         print("Step 2: Extracting asset IDs")
         print("=" * 80)
 
-        first_market = markets[0]
-        print(f"\nSelected market: {first_market.get('question', 'Unknown')}")
+        clob_token_ids, asset_id_to_question = get_assets(markets)
 
-        clob_token_ids = json.loads(first_market["clobTokenIds"])
         print(f"Asset IDs: {clob_token_ids}")
 
         print("\n" + "=" * 80)
@@ -354,12 +413,10 @@ def main():
         print("=" * 80)
 
         if args.mode == MODE_WEBSOCKET:
-            # WebSocket mode - stream price changes
             client = PolymarketWebSocketClient(asset_ids=clob_token_ids, channel=MARKET_CHANNEL)
             client.run()
         else:
-            # REST API mode - poll order book depth
-            poller = OrderBookPoller(asset_ids=clob_token_ids, poll_interval=args.poll_interval)
+            poller = OrderBookPoller(asset_ids=clob_token_ids, poll_interval=args.poll_interval, asset_to_question=asset_id_to_question)
             poller.poll_order_books()
 
     except KeyboardInterrupt:

@@ -16,6 +16,7 @@ import json
 import argparse
 import csv
 from datetime import datetime, timezone
+import os
 
 def parse_snapshot(msg):
     """
@@ -23,7 +24,7 @@ def parse_snapshot(msg):
     msg: parsed JSON as python dict (structure like your sample).
     """
     data = msg.get("data", msg)
-    
+
     ts_ms = None
     if "timestamp" in msg and isinstance(msg["timestamp"], (int, float)):
         ts_ms = int(msg["timestamp"])
@@ -122,28 +123,31 @@ def parse_snapshot(msg):
     }
     return row
 
-def process_ndjson(infile, outfile):
-    with open(infile, "r") as fin, open(outfile, "w", newline="") as fout:
-        fieldnames = ["timestamp_ms","t_iso","best_bid","best_bid_size","best_ask","best_ask_size",
-                      "mid","spread","total_depth","top5_depth_sum","trade_volume"]
-        writer = csv.DictWriter(fout, fieldnames=fieldnames)
-        writer.writeheader()
+def process_ndjson(indir, outdir):
+    in_files = os.listdir(indir)
 
-        for line in fin:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except Exception:
-                # try to ignore non-json lines
-                continue
-            row = parse_snapshot(msg)
-            writer.writerow(row)
+    for file in in_files:
+        outfile = outdir + "/PROCESSED" + file[:-6] + ".csv"
+        with open(indir+"/"+file, "r") as fin, open(outfile, "w", newline="") as fout:
+            fieldnames = ["timestamp_ms","t_iso","best_bid","best_bid_size","best_ask","best_ask_size",
+                            "mid","spread","total_depth","top5_depth_sum","trade_volume"]
+            writer = csv.DictWriter(fout, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for line in fin:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    msg = json.loads(line)
+                except Exception:
+                    continue
+                row = parse_snapshot(msg)
+                writer.writerow(row)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--in", dest="infile", required=True, help="Input ndjson of snapshots")
-    ap.add_argument("--out", dest="outfile", required=True, help="CSV output path")
+    ap.add_argument("--in", dest="indir", required=True, help="Directory with input jsonl")
+    ap.add_argument("--out", dest="outdir", required=True, help="Directory to output CSVs to")
     args = ap.parse_args()
-    process_ndjson(args.infile, args.outfile)
+    process_ndjson(args.indir, args.outdir)
