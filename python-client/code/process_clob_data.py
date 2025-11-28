@@ -22,8 +22,8 @@ def parse_snapshot(msg):
     Parse one JSON snapshot (dict) and return a row dict.
     msg: parsed JSON as python dict (structure like your sample).
     """
-    data = msg.get("data", msg)  # sample stores payload under "data"
-    # timestamps: prefer numeric timestamp field if present
+    data = msg.get("data", msg)
+    
     ts_ms = None
     if "timestamp" in msg and isinstance(msg["timestamp"], (int, float)):
         ts_ms = int(msg["timestamp"])
