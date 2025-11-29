@@ -294,11 +294,38 @@ def compute_trading_intensity_signed(df: pd.DataFrame) -> pd.Series:
     return pd.Series(I_signed, index=df.index, name='I_signed')
 
 
+def compute_liquidity_from_depth(df: pd.DataFrame, depth_col: str = 'top5_depth_sum') -> pd.Series:
+    """
+    Compute liquidity as inverse of order book depth.
+
+    ℓ = 1 / depth
+
+    Higher depth → lower ℓ → more liquid
+    Lower depth → higher ℓ → less liquid
+
+    Parameters
+    ----------
+    df : DataFrame with depth column
+    depth_col : name of depth column (default: 'top5_depth_sum')
+
+    Returns
+    -------
+    ell : Series of liquidity values
+    """
+    depth = df[depth_col].values
+
+    # Avoid division by zero
+    ell = np.where(depth > 0, 1.0 / depth, np.nan)
+
+    return pd.Series(ell, index=df.index, name='ell_avg')
+
+
 def compute_all_observables(
     csv_path: str,
     jsonl_path: str,
     trade_size: float = 1.0,
     normalized_spread: bool = False,
+    use_depth_liquidity: bool = True,
 ) -> pd.DataFrame:
     """
     End-to-end: load CSV, compute all observables, return unified DataFrame.
@@ -307,15 +334,16 @@ def compute_all_observables(
     ----------
     csv_path : path to CSV from process_clob_data.py
     jsonl_path : path to original JSONL for full depth
-    trade_size : simulated trade size for liquidity estimation
+    trade_size : simulated trade size for liquidity estimation (if use_depth_liquidity=False)
     normalized_spread : if True, compute R̃ instead of R
+    use_depth_liquidity : if True, use 1/depth as liquidity proxy (much faster and more stable)
 
     Returns
     -------
     df : DataFrame with columns:
         - timestamp_ms, t_iso, best_bid, best_ask, mid, spread, ...
         - R (bid-ask spread)
-        - ell_buy, ell_sell, ell_avg (liquidity)
+        - ell_avg (liquidity)
         - I_depth, I_signed (trading intensity proxies)
     """
     # Load CSV
@@ -325,8 +353,13 @@ def compute_all_observables(
     df['R'] = compute_spread(df, normalized=normalized_spread)
 
     # Compute liquidity
-    ell_df = compute_liquidity_series(df, jsonl_path, trade_size=trade_size)
-    df = pd.concat([df, ell_df], axis=1)
+    if use_depth_liquidity:
+        # Fast, stable proxy: inverse of depth
+        df['ell_avg'] = compute_liquidity_from_depth(df, depth_col='top5_depth_sum')
+    else:
+        # Slow, potentially unstable: price impact simulation
+        ell_df = compute_liquidity_series(df, jsonl_path, trade_size=trade_size)
+        df = pd.concat([df, ell_df], axis=1)
 
     # Compute intensity proxies
     df['I_depth'] = compute_trading_intensity_depth_change(df)

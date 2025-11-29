@@ -3,11 +3,10 @@
 batch_analyze.py
 
 Batch process all JSONL files using the liquidity dynamics pipeline.
-Automatically extracts market resolution times from market-data.json and
-processes each market individually.
+Automatically extracts market resolution times from the last timestamp in each JSONL file.
 
 Usage:
-    python batch_analyze.py --jsonl-dir data/order-books/jsons --market-data market-data.json --output-base results/
+    python batch_analyze.py --jsonl-dir data/order-books/jsons --output-base results/
 """
 
 import argparse
@@ -17,53 +16,39 @@ from datetime import datetime, timezone
 import subprocess
 import sys
 
-def parse_iso_to_ms(iso_string):
-    """Convert ISO timestamp string to milliseconds since epoch."""
-    dt = datetime.fromisoformat(iso_string.replace('Z', '+00:00'))
-    return int(dt.timestamp() * 1000)
+def get_last_timestamp(jsonl_path):
+    """Get the timestamp from the last line of a JSONL file (resolution time)."""
+    last_line = None
 
-def load_market_data(market_data_path):
-    """
-    Load market data JSON and create a mapping from token ID to resolution time.
+    with open(jsonl_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                last_line = line
 
-    Returns:
-        dict: {token_id: resolution_time_ms}
-    """
-    with open(market_data_path, 'r') as f:
-        markets = json.load(f)
+    if not last_line:
+        return None
 
-    token_to_resolution = {}
+    data = json.loads(last_line)
 
-    for market in markets:
-        # Extract endDate (resolution time)
-        end_date = market.get('endDate')
-        if not end_date:
-            print(f"  Warning: No endDate for market {market.get('question', 'Unknown')}")
-            continue
+    # Try top-level timestamp
+    ts_ms = data.get('timestamp')
+    if ts_ms and isinstance(ts_ms, (int, float)):
+        return int(ts_ms)
 
-        resolution_ms = parse_iso_to_ms(end_date)
+    # Try nested data.timestamp
+    if 'data' in data:
+        ts_ms = data['data'].get('timestamp')
+        if ts_ms:
+            try:
+                return int(ts_ms)
+            except:
+                try:
+                    return int(float(ts_ms))
+                except:
+                    pass
 
-        # Extract token IDs
-        clob_token_ids = market.get('clobTokenIds')
-        if not clob_token_ids:
-            continue
-
-        # Parse token IDs (it's a JSON string)
-        try:
-            token_ids = json.loads(clob_token_ids)
-        except:
-            print(f"  Warning: Could not parse clobTokenIds for {market.get('question', 'Unknown')}")
-            continue
-
-        # Map each token ID to this resolution time
-        for token_id in token_ids:
-            token_to_resolution[token_id] = {
-                'resolution_ms': resolution_ms,
-                'market_name': market.get('question', 'Unknown'),
-                'end_date': end_date,
-            }
-
-    return token_to_resolution
+    return None
 
 def extract_token_id_from_filename(filename):
     """
@@ -72,23 +57,25 @@ def extract_token_id_from_filename(filename):
     Filename format: MarketName_TOKEN_ID.jsonl
     Example: Georgia_vs._Georgia_Tech_20812556181257502299452162938829645659671675918267704479092636289804545785305.jsonl
     """
-    # Remove .jsonl extension
     base = filename.replace('.jsonl', '')
-
-    # The token ID is the last part after the last underscore,
-    # but we need to handle market names with underscores
-    # Strategy: find the longest numeric suffix
     parts = base.split('_')
     for i in range(len(parts)-1, -1, -1):
         if parts[i].isdigit():
             return parts[i]
-
     return None
+
+def extract_market_name_from_filename(filename):
+    """Extract market name from filename (before the token ID)."""
+    base = filename.replace('.jsonl', '')
+    parts = base.split('_')
+    for i in range(len(parts)-1, -1, -1):
+        if parts[i].isdigit():
+            return '_'.join(parts[:i])
+    return base
 
 def main():
     parser = argparse.ArgumentParser(description='Batch process liquidity dynamics for all markets')
     parser.add_argument('--jsonl-dir', required=True, help='Directory containing JSONL files')
-    parser.add_argument('--market-data', required=True, help='Path to market-data.json')
     parser.add_argument('--output-base', default='results/', help='Base output directory')
     parser.add_argument('--trade-size', type=float, default=1.0, help='Trade size for liquidity estimation')
     parser.add_argument('--model-type', choices=['linear', 'bounded'], default='linear', help='Model type')
@@ -98,14 +85,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Load market data
     print("=" * 80)
     print("BATCH LIQUIDITY DYNAMICS ANALYSIS")
     print("=" * 80)
-    print(f"\nLoading market data from {args.market_data}...")
-
-    token_to_resolution = load_market_data(args.market_data)
-    print(f"  Loaded {len(token_to_resolution)} token-to-resolution mappings")
 
     # Find all JSONL files
     print(f"\nScanning {args.jsonl_dir} for JSONL files...")
@@ -120,8 +102,9 @@ def main():
     for jsonl_file in sorted(jsonl_files):
         jsonl_path = os.path.join(args.jsonl_dir, jsonl_file)
 
-        # Extract token ID from filename
+        # Extract info from filename
         token_id = extract_token_id_from_filename(jsonl_file)
+        market_name = extract_market_name_from_filename(jsonl_file)
 
         if token_id is None:
             print(f"\n[SKIP] {jsonl_file}")
@@ -129,19 +112,18 @@ def main():
             skipped += 1
             continue
 
-        if token_id not in token_to_resolution:
+        # Extract resolution time from last timestamp
+        resolution_ms = get_last_timestamp(jsonl_path)
+
+        if resolution_ms is None:
             print(f"\n[SKIP] {jsonl_file}")
-            print(f"  Reason: Token ID {token_id} not found in market data")
+            print(f"  Reason: Could not extract resolution time from JSONL")
             skipped += 1
             continue
 
-        market_info = token_to_resolution[token_id]
-        market_name = market_info['market_name']
-        resolution_ms = market_info['resolution_ms']
-
         print(f"\n[PROCESS] {jsonl_file}")
         print(f"  Market: {market_name}")
-        print(f"  Resolution time: {market_info['end_date']} ({resolution_ms} ms)")
+        print(f"  Resolution time: {resolution_ms} ms")
 
         # First, check if CSV needs to be generated
         csv_dir = os.path.join(os.path.dirname(args.jsonl_dir), 'csvs')
