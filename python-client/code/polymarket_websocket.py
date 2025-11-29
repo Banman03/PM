@@ -153,7 +153,7 @@ def file_exists(filename: str):
     else:
         return None
 
-def get_markets(offset: int = 0, closed: bool = None,
+def get_markets(offset: int = 0, closed: bool = True,
                 volume_min: int = 0, liquidity_min: int = 0) -> List[Dict[str, Any]]:
     """
     Fetch markets from Polymarket API using requests
@@ -170,8 +170,8 @@ def get_markets(offset: int = 0, closed: bool = None,
     api_url = "https://gamma-api.polymarket.com/markets"
     print(f"Fetching markets from {api_url}...")
 
-    slugs = ["cfb-airf-colst-2025-11-28", "cfb-ga-gtech-2025-11-28",
-            "nba-orl-det-2025-11-28", "nba-phi-bkn-2025-11-28", "nba-cle-atl-2025-11-28", "nba-chi-cha-2025-11-28", "nba-mil-nyk-2025-11-28", "nba-was-ind-2025-11-28"]
+    slugs = ["nfl-chi-phi-2025-11-28"] #"cfb-iowa-nebr-2025-11-28", "cfb-kentst-nill-2025-11-28", "cfb-ohio-buf-2025-11-28", "cfb-utah-kan-2025-11-28", "cfb-miss-mspst-2025-11-28", "cfb-airf-colst-2025-11-28",  "cfb-ga-gtech-2025-11-28",
+            # "nba-orl-det-2025-11-28", "nba-phi-bkn-2025-11-28", "nba-cle-atl-2025-11-28", "nba-chi-cha-2025-11-28", "nba-mil-nyk-2025-11-28", "nba-was-ind-2025-11-28"]
 
     params = {
         "offset": offset,
@@ -179,7 +179,8 @@ def get_markets(offset: int = 0, closed: bool = None,
         "liquidity_num_min": liquidity_min,
         "order": "liquidity",
         "ascending": "false",
-        "slug": slugs
+        "slug": slugs,
+        "closed": "true"
     }
 
     if closed is not None:
