@@ -24,17 +24,17 @@ plt.rcParams['mathtext.fontset'] = 'dejavuserif'
 def plot_observables_timeseries(
     tau: np.ndarray,
     R: np.ndarray,
-    ell: np.ndarray,
+    D: np.ndarray,
     I: np.ndarray,
     save_path: Optional[str] = None,
 ):
     """
-    Plot time series of observables R(τ), ℓ(τ), I(τ).
+    Plot time series of observables R(tau), liq(tau), I(tau).
 
     Parameters
     ----------
     tau : time-to-resolution (seconds or hours)
-    R, ell, I : observable arrays
+    R, D, I : observable arrays
     save_path : if provided, save figure to this path
     """
     fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
@@ -44,9 +44,9 @@ def plot_observables_timeseries(
     axes[0].set_ylabel(r'Spread $R(\tau)$', fontsize=12)
     axes[0].grid(True, alpha=0.3)
 
-    # Plot ℓ
-    axes[1].plot(tau, ell, 'g-', linewidth=1.5, alpha=0.7)
-    axes[1].set_ylabel(r'Liquidity $\ell(\tau)$ ($/share)', fontsize=12)
+    # Plot liq
+    axes[1].plot(tau, D, 'g-', linewidth=1.5, alpha=0.7)
+    axes[1].set_ylabel(r'Liquidity $\D(\tau)$ ($/share)', fontsize=12)
     axes[1].grid(True, alpha=0.3)
 
     # Plot I
@@ -66,11 +66,11 @@ def plot_observables_timeseries(
 
 def plot_model_vs_observed(
     tau: np.ndarray,
-    ell_obs: np.ndarray,
-    ell_model: np.ndarray,
+    R_obs: np.ndarray,
+    R_model: np.ndarray,
     tau_test: Optional[np.ndarray] = None,
-    ell_obs_test: Optional[np.ndarray] = None,
-    ell_model_test: Optional[np.ndarray] = None,
+    R_obs_test: Optional[np.ndarray] = None,
+    R_model_test: Optional[np.ndarray] = None,
     save_path: Optional[str] = None,
 ):
     """
@@ -79,25 +79,25 @@ def plot_model_vs_observed(
     Parameters
     ----------
     tau : time-to-resolution (train)
-    ell_obs : observed liquidity (train)
-    ell_model : model prediction (train)
-    tau_test, ell_obs_test, ell_model_test : test set data (optional)
+    R_obs : observed liquidity (train)
+    R_model : model prediction (train)
+    tau_test, R_obs_test, R_model_test : test set data (optional)
     save_path : save path
     """
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Training data
-    ax.plot(tau, ell_obs, 'o', color='blue', alpha=0.5, markersize=4, label='Observed (train)')
-    ax.plot(tau, ell_model, '-', color='red', linewidth=2, label='Model (train)')
+    ax.plot(tau, R_obs, 'o', color='blue', alpha=0.5, markersize=4, label='Observed (train)')
+    ax.plot(tau, R_model, '-', color='red', linewidth=2, label='Model (train)')
 
     # Test data
-    if tau_test is not None and ell_obs_test is not None:
-        ax.plot(tau_test, ell_obs_test, 's', color='cyan', alpha=0.5, markersize=4, label='Observed (test)')
-        if ell_model_test is not None:
-            ax.plot(tau_test, ell_model_test, '--', color='orange', linewidth=2, label='Model (test)')
+    if tau_test is not None and R_obs_test is not None:
+        ax.plot(tau_test, R_obs_test, 's', color='cyan', alpha=0.5, markersize=4, label='Observed (test)')
+        if R_model_test is not None:
+            ax.plot(tau_test, R_model_test, '--', color='orange', linewidth=2, label='Model (test)')
 
     ax.set_xlabel(r'Time to resolution $\tau$ (seconds)', fontsize=12)
-    ax.set_ylabel(r'Liquidity $\ell(\tau)$ ($/share)', fontsize=12)
+    ax.set_ylabel(r'Bid-ask spread', fontsize=12)
     ax.legend(loc='best', fontsize=10)
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -110,8 +110,8 @@ def plot_model_vs_observed(
 
 
 def plot_scatter_obs_vs_pred(
-    ell_obs: np.ndarray,
-    ell_pred: np.ndarray,
+    R_obs: np.ndarray,
+    R_pred: np.ndarray,
     save_path: Optional[str] = None,
 ):
     """
@@ -119,18 +119,18 @@ def plot_scatter_obs_vs_pred(
 
     Parameters
     ----------
-    ell_obs : observed
-    ell_pred : predicted
+    R_obs : observed
+    R_pred : predicted
     save_path : save path
     """
     fig, ax = plt.subplots(figsize=(6, 6))
 
     # Remove NaNs
-    valid = ~(np.isnan(ell_obs) | np.isnan(ell_pred))
-    ell_obs = ell_obs[valid]
-    ell_pred = ell_pred[valid]
+    valid = ~(np.isnan(R_obs) | np.isnan(R_pred))
+    R_obs = R_obs[valid]
+    R_pred = R_pred[valid]
 
-    ax.scatter(ell_obs, ell_pred, alpha=0.5, s=20, edgecolors='k', linewidths=0.5)
+    ax.scatter(R_obs, R_pred, alpha=0.5, s=20, edgecolors='k', linewidths=0.5)
 
     # 45-degree line
     lims = [
@@ -139,8 +139,8 @@ def plot_scatter_obs_vs_pred(
     ]
     ax.plot(lims, lims, 'r--', linewidth=2, label='Perfect fit')
 
-    ax.set_xlabel(r'Observed $\ell$', fontsize=12)
-    ax.set_ylabel(r'Predicted $\ell$', fontsize=12)
+    ax.set_xlabel(r'Observed Spread ($)', fontsize=12)
+    ax.set_ylabel(r'Predicted Spread ($)', fontsize=12)
     ax.set_aspect('equal')
     ax.legend(loc='best')
     ax.grid(True, alpha=0.3)
@@ -173,7 +173,7 @@ def plot_residuals(
     ax.axhline(0, color='red', linestyle='--', linewidth=2)
 
     ax.set_xlabel(r'Time to resolution $\tau$ (seconds)', fontsize=12)
-    ax.set_ylabel(r'Residuals ($\ell_{obs} - \ell_{model}$)', fontsize=12)
+    ax.set_ylabel(r'Residuals ($R_{obs} - R_{model}$)', fontsize=12)
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
 

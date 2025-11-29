@@ -10,32 +10,34 @@ from scipy.integrate import solve_ivp
 from typing import Callable, Tuple
 
 
-def ode_linear(tau, ell, a, b, c, I_func, R_func):
+def ode_linear(tau, R, a, b, c, I_func, D_func):
     """
-    Linear liquidity ODE: dℓ/dτ = a·I(τ) - b·R(τ) + c·ℓ(τ)
+    Linear spread ODE: dR/dτ = a·I(τ) - b·D(τ) + c·R(τ)
+
+    NEW MODEL: We model spread dynamics instead of liquidity.
 
     Parameters
     ----------
     tau : float, current time-to-resolution
-    ell : float, current liquidity level
+    R : float, current spread level
     a, b, c : model parameters
     I_func : callable, I_func(tau) returns trading intensity at tau
-    R_func : callable, R_func(tau) returns bid-ask spread at tau
+    D_func : callable, D_func(tau) returns market depth at tau
 
     Returns
     -------
-    dell_dtau : float, derivative dℓ/dτ
+    dR_dtau : float, derivative dR/dτ
     """
     I_val = I_func(tau)
-    R_val = R_func(tau)
-    return a * I_val - b * R_val + c * ell
+    D_val = D_func(tau)
+    return a * I_val - b * D_val + c * R
 
 
 def ode_bounded(tau, ell, a, b, c, d, ell_max, ell_min, I_func, R_func):
     """
     Bounded liquidity ODE with logistic saturation and floor penalty:
 
-    dℓ/dτ = (a·I - b·R) + c·ℓ·(1 - ℓ/ℓ_max) - d·max{ℓ_min - ℓ, 0}
+    dliq/dtau = (a·I - b·R) + c·liq·(1 - liq/liq_max) - d·max{liq_min - liq, 0}
 
     Parameters
     ----------
@@ -67,38 +69,40 @@ def ode_bounded(tau, ell, a, b, c, d, ell_max, ell_min, I_func, R_func):
 
 def integrate_ode_linear(
     tau_grid: np.ndarray,
-    ell0: float,
+    R0: float,
     a: float,
     b: float,
     c: float,
     I_func: Callable,
-    R_func: Callable,
+    D_func: Callable,
 ) -> np.ndarray:
     """
-    Integrate linear ODE over tau_grid with initial condition ell0.
+    Integrate linear spread ODE over tau_grid with initial condition R0.
+
+    dR/dτ = a·I(τ) - b·D(τ) + c·R(τ)
 
     Parameters
     ----------
-    tau_grid : 1D array of τ values (must be sorted ascending or descending)
-    ell0 : initial liquidity ℓ(tau_grid[0])
+    tau_grid : 1D array of tau values (must be sorted ascending or descending)
+    R0 : initial spread R(tau_grid[0])
     a, b, c : model parameters
-    I_func : callable, I_func(tau) -> float
-    R_func : callable, R_func(tau) -> float
+    I_func : callable, I_func(tau) -> float (trading intensity)
+    D_func : callable, D_func(tau) -> float (market depth)
 
     Returns
     -------
-    ell_traj : 1D array of ℓ(τ) values at each tau_grid point
+    R_traj : 1D array of R(tau) values at each tau_grid point
     """
-    def rhs(tau, ell):
-        return ode_linear(tau, ell[0], a, b, c, I_func, R_func)
+    def rhs(tau, R):
+        return ode_linear(tau, R[0], a, b, c, I_func, D_func)
 
     # solve_ivp expects t_span and t_eval
     tau_span = (tau_grid[0], tau_grid[-1])
 
     sol = solve_ivp(
-        rhs,
-        tau_span,
-        [ell0],
+        fun=rhs,
+        t_span=tau_span,
+        y0=[R0],
         t_eval=tau_grid,
         method='RK45',
         dense_output=False,
@@ -112,13 +116,13 @@ def integrate_ode_linear(
 
 def integrate_ode_bounded(
     tau_grid: np.ndarray,
-    ell0: float,
+    R0: float,
     a: float,
     b: float,
     c: float,
     d: float,
-    ell_max: float,
-    ell_min: float,
+    R_max: float,
+    R_min: float,
     I_func: Callable,
     R_func: Callable,
 ) -> np.ndarray:
@@ -127,25 +131,25 @@ def integrate_ode_bounded(
 
     Parameters
     ----------
-    tau_grid : 1D array of τ values
-    ell0 : initial liquidity
+    tau_grid : 1D array of tau values
+    R0 : initial liquidity
     a, b, c, d : model parameters
-    ell_max, ell_min : bounds
+    R_max, R_min : bounds
     I_func, R_func : callables
 
     Returns
     -------
-    ell_traj : 1D array of ℓ(τ)
+    R_traj : 1D array of liq(tau)
     """
-    def rhs(tau, ell):
-        return ode_bounded(tau, ell[0], a, b, c, d, ell_max, ell_min, I_func, R_func)
+    def rhs(tau, R):
+        return ode_bounded(tau, R[0], a, b, c, d, R_max, R_min, I_func, R_func)
 
     tau_span = (tau_grid[0], tau_grid[-1])
 
     sol = solve_ivp(
         rhs,
         tau_span,
-        [ell0],
+        [R0],
         t_eval=tau_grid,
         method='RK45',
         dense_output=False,
@@ -169,8 +173,8 @@ def analytic_solution_linear_constant_forcing(
     """
     Analytic solution for linear ODE with constant I and R.
 
-    ℓ(τ) = exp(c·τ) · [ℓ₀ + (a·I - b·R)/c · (exp(-c·τ) - 1)]  if c ≠ 0
-         = ℓ₀ + (a·I - b·R)·τ                                  if c = 0
+    liq(tau) = exp(c·tau) · [liq₀ + (a·I - b·R)/c · (exp(-c·tau) - 1)]  if c ≠ 0
+         = liq₀ + (a·I - b·R)·tau                                  if c = 0
 
     Parameters
     ----------
@@ -182,7 +186,7 @@ def analytic_solution_linear_constant_forcing(
 
     Returns
     -------
-    ell_traj : ℓ(τ) at each tau
+    ell_traj : liq(tau) at each tau
     """
     tau = tau_grid
     forcing = a * I_const - b * R_const
@@ -223,7 +227,7 @@ class LiquidityModel:
         R_func: Callable,
     ) -> np.ndarray:
         """
-        Predict ℓ(τ) trajectory given parameters and input functions.
+        Predict liq(tau) trajectory given parameters and input functions.
 
         Parameters
         ----------

@@ -50,15 +50,15 @@ from plotting import (
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Liquidity dynamics model pipeline')
+    parser = argparse.ArgumentParser(description='Spread dynamics model pipeline')
     parser.add_argument('--csv', required=True, help='Path to CSV file (from process_clob_data.py)')
     parser.add_argument('--jsonl', required=True, help='Path to JSONL file (original order book snapshots)')
     parser.add_argument('--resolution-time', type=int, required=True,
                         help='Market resolution timestamp (milliseconds since epoch)')
     parser.add_argument('--trade-size', type=float, default=1.0,
-                        help='Simulated trade size for liquidity estimation (default: 1.0 shares)')
+                        help='Simulated trade size for bid-ask estimation (default: 1.0 shares)')
     parser.add_argument('--output-dir', default='results/', help='Output directory for plots and results')
-    parser.add_argument('--n-grid-points', type=int, default=500, help='Number of points in regular τ grid')
+    parser.add_argument('--n-grid-points', type=int, default=500, help='Number of points in regular tau grid')
     parser.add_argument('--smooth-window', type=int, default=3, help='Smoothing window size')
     parser.add_argument('--model-type', choices=['linear', 'bounded'], default='linear',
                         help='Model type: linear or bounded')
@@ -72,7 +72,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     print("=" * 80)
-    print("LIQUIDITY DYNAMICS MODEL PIPELINE")
+    print("SPREAD DYNAMICS MODEL PIPELINE")
     print("=" * 80)
 
     # -------------------------------------------------------------------------
@@ -103,22 +103,22 @@ def main():
     # -------------------------------------------------------------------------
     # Step 2: Resample to regular grid and smooth
     # -------------------------------------------------------------------------
-    print("\n[2/7] Resampling to regular τ grid and smoothing...")
+    print("\n[2/7] Resampling to regular tau grid and smoothing...")
 
     df_grid = resample_regular_grid(
         df_obs,
         tau_col='tau_sec',
-        observables=['R', 'ell_avg', 'I'],
+        observables=['R', 'D', 'I'],
         n_points=args.n_grid_points,
     )
 
     # Smooth
     df_grid['R_smooth'] = smooth_series(df_grid['R'], window=args.smooth_window)
-    df_grid['ell_smooth'] = smooth_series(df_grid['ell_avg'], window=args.smooth_window)
+    df_grid['D_smooth'] = smooth_series(df_grid['D'], window=args.smooth_window)
     df_grid['I_smooth'] = smooth_series(df_grid['I'], window=args.smooth_window)
 
     # Drop NaNs
-    df_grid = df_grid.dropna(subset=['tau_sec', 'R_smooth', 'ell_smooth', 'I_smooth']).reset_index(drop=True)
+    df_grid = df_grid.dropna(subset=['tau_sec', 'R_smooth', 'D_smooth', 'I_smooth']).reset_index(drop=True)
 
     print(f"  Resampled to {len(df_grid)} points")
 
@@ -137,16 +137,16 @@ def main():
     print(f"  Train: {len(df_train)} points")
     print(f"  Test: {len(df_test)} points")
 
-    # Extract arrays
+    # Extract arrays (NEW MODEL: R is dependent, D and I are independent)
     tau_train = df_train['tau_sec'].values
-    ell_train = df_train['ell_smooth'].values
-    I_train = df_train['I_smooth'].values
-    R_train = df_train['R_smooth'].values
+    R_train = df_train['R_smooth'].values  # DEPENDENT VARIABLE
+    I_train = df_train['I_smooth'].values   # Independent
+    D_train = df_train['D_smooth'].values   # Independent
 
     tau_test = df_test['tau_sec'].values
-    ell_test = df_test['ell_smooth'].values
-    I_test = df_test['I_smooth'].values
-    R_test = df_test['R_smooth'].values
+    R_test = df_test['R_smooth'].values    # DEPENDENT VARIABLE
+    I_test = df_test['I_smooth'].values     # Independent
+    D_test = df_test['D_smooth'].values     # Independent
 
     # -------------------------------------------------------------------------
     # Step 4: Fit model
@@ -154,38 +154,36 @@ def main():
     print(f"\n[4/7] Fitting {args.model_type} model using Method B (trajectory fit)...")
 
     if args.model_type == 'linear':
-        # Initial guess and bounds
-        print("fitting linear method b")
-        initial_guess = (1e-6, 0.01, -0.001)
-        bounds = ((0, 0, -10), (1.0, 10.0, 10))
+        # Initial guess and bounds for NEW MODEL: dR/dτ = a·I - b·D + c·R
+        initial_guess = (1e-7, 1e-8, -0.001)  # (a, b, c)
+        bounds = ((0, 0, -10), (1e-4, 1e-6, 10))  # Scale down based on typical I and D values
 
         result = fit_with_multiple_restarts(
             fit_linear_method_b,
             n_restarts=5,
             tau=tau_train,
-            ell_obs=ell_train,
-            I_obs=I_train,
-            R_obs=R_train,
+            R_obs=R_train,  # DEPENDENT VARIABLE (spread)
+            I_obs=I_train,  # Independent (trading intensity)
+            D_obs=D_train,  # Independent (market depth)
             initial_guess=initial_guess,
             bounds=bounds,
         )
 
     elif args.model_type == 'bounded':
-        # Estimate ell_max and ell_min from data
-        print("fitting bounded method b")
-        ell_max_guess = np.nanmax(ell_train) * 1.5
-        ell_min_guess = np.nanmin(ell_train) * 0.5
+        # Estimate R_max and R_min from data for bounded model
+        R_max_guess = np.nanmax(R_train) * 1.5
+        R_min_guess = np.nanmin(R_train) * 0.5
 
-        initial_guess = (1e-6, 0.01, -0.001, 0.01, ell_max_guess, ell_min_guess)
-        bounds = ((0, 0, -10, 0, ell_max_guess * 0.5, 0), (1.0, 10.0, 10, 10, ell_max_guess * 2, ell_min_guess * 2))
+        initial_guess = (1e-7, 1e-8, -0.001, 0.01, R_max_guess, R_min_guess)
+        bounds = ((0, 0, -10, 0, R_max_guess * 0.5, 0), (1e-4, 1e-6, 10, 10, R_max_guess * 2, R_min_guess * 2))
 
         result = fit_with_multiple_restarts(
             fit_bounded_method_b,
             n_restarts=3,
             tau=tau_train,
-            ell_obs=ell_train,
+            D_obs=D_train,
             I_obs=I_train,
-            R_obs=R_train,
+            R_obs=R_train,  # DEPENDENT VARIABLE
             initial_guess=initial_guess,
             bounds=bounds,
         )
@@ -217,44 +215,51 @@ def main():
     # -------------------------------------------------------------------------
     print("\n[5/7] Generating model predictions...")
 
-    # Interpolators for I and R
+    # Interpolators for I and D (NEW MODEL: these are independent variables)
     I_train_func = interp1d(tau_train, I_train, kind='linear', fill_value='extrapolate')
-    R_train_func = interp1d(tau_train, R_train, kind='linear', fill_value='extrapolate')
+    D_train_func = interp1d(tau_train, D_train, kind='linear', fill_value='extrapolate')
 
     I_test_func = interp1d(tau_test, I_test, kind='linear', fill_value='extrapolate')
-    R_test_func = interp1d(tau_test, R_test, kind='linear', fill_value='extrapolate')
+    D_test_func = interp1d(tau_test, D_test, kind='linear', fill_value='extrapolate')
 
-    ell0 = ell_train[0]
+    R0 = R_train[0]  # Initial spread value
 
+    diffs = np.diff(tau_train)
+    print("min |Δτ|:", np.min(np.abs(diffs)))
+    print("any duplicates:", np.any(diffs == 0))
+    print("monotone increasing:", np.all(diffs > 0))
+    print("monotone decreasing:", np.all(diffs < 0))
+
+    return
     # Train predictions
     if args.model_type == 'linear':
-        ell_train_pred = integrate_ode_linear(
-            tau_train, ell0,
+        R_train_pred = integrate_ode_linear(
+            tau_train, R0,
             result['params']['a'], result['params']['b'], result['params']['c'],
-            I_train_func, R_train_func
+            I_train_func, D_train_func
         )
-        ell_test_pred = integrate_ode_linear(
-            tau_test, ell0,
+        R_test_pred = integrate_ode_linear(
+            tau_test, R0,
             result['params']['a'], result['params']['b'], result['params']['c'],
-            I_test_func, R_test_func
+            I_test_func, D_test_func
         )
     else:
-        ell_train_pred = integrate_ode_bounded(
-            tau_train, ell0,
+        R_train_pred = integrate_ode_bounded(
+            tau_train, R0,
             result['params']['a'], result['params']['b'], result['params']['c'], result['params']['d'],
-            result['params']['ell_max'], result['params']['ell_min'],
-            I_train_func, R_train_func
+            result['params']['R_max'], result['params']['R_min'],
+            I_train_func, D_train_func
         )
-        ell_test_pred = integrate_ode_bounded(
-            tau_test, ell0,
+        R_test_pred = integrate_ode_bounded(
+            tau_test, R0,
             result['params']['a'], result['params']['b'], result['params']['c'], result['params']['d'],
-            result['params']['ell_max'], result['params']['ell_min'],
-            I_test_func, R_test_func
+            result['params']['R_max'], result['params']['R_min'],
+            I_test_func, D_test_func
         )
 
     # Goodness of fit
-    gof_train = compute_goodness_of_fit(ell_train, ell_train_pred)
-    gof_test = compute_goodness_of_fit(ell_test, ell_test_pred)
+    gof_train = compute_goodness_of_fit(R_train, R_train_pred)
+    gof_test = compute_goodness_of_fit(R_test, R_test_pred)
 
     print("  Train set metrics:")
     for k, v in gof_train.items():
@@ -269,7 +274,7 @@ def main():
     # -------------------------------------------------------------------------
     print("\n[6/7] Running diagnostics...")
 
-    diagnostics = run_all_diagnostics(ell_train, ell_train_pred)
+    diagnostics = run_all_diagnostics(R_train, R_train_pred)
 
     print(f"  Ljung-Box test (autocorrelation): stat={diagnostics['ljung_box_statistic']:.2f}, p={diagnostics['ljung_box_pvalue']:.4f}")
     print(f"  Shapiro-Wilk test (normality): stat={diagnostics['shapiro_wilk_statistic']:.4f}, p={diagnostics['shapiro_wilk_pvalue']:.4f}")
@@ -283,7 +288,7 @@ def main():
 
         bootstrap_df = bootstrap_parameters(
             fit_func,
-            tau_train, ell_train, I_train, R_train,
+            tau_train, R_train, I_train, D_train,
             n_bootstrap=args.n_bootstrap,
             block_size=10,
             initial_guess=initial_guess,
@@ -313,27 +318,27 @@ def main():
     plot_observables_timeseries(
         df_grid['tau_sec'].values,
         df_grid['R_smooth'].values,
-        df_grid['ell_smooth'].values,
+        df_grid['D_smooth'].values,
         df_grid['I_smooth'].values,
         save_path=os.path.join(args.output_dir, 'fig_observables_timeseries.png')
     )
 
     # 2. Model vs. observed
     plot_model_vs_observed(
-        tau_train, ell_train, ell_train_pred,
-        tau_test, ell_test, ell_test_pred,
+        tau_train, R_train, R_train_pred,
+        tau_test, R_test, R_test_pred,
         save_path=os.path.join(args.output_dir, 'fig_model_vs_observed.png')
     )
 
     # 3. Scatter plot
     plot_scatter_obs_vs_pred(
-        np.concatenate([ell_train, ell_test]),
-        np.concatenate([ell_train_pred, ell_test_pred]),
+        np.concatenate([R_train, R_test]),
+        np.concatenate([R_train_pred, R_test_pred]),
         save_path=os.path.join(args.output_dir, 'fig_scatter_obs_vs_pred.png')
     )
 
     # 4. Residuals
-    residuals_train = ell_train - ell_train_pred
+    residuals_train = R_train - R_train_pred
     plot_residuals(
         tau_train, residuals_train,
         save_path=os.path.join(args.output_dir, 'fig_residuals.png')
@@ -341,7 +346,7 @@ def main():
 
     # 5. Residual diagnostics
     plot_residual_diagnostics(
-        residuals_train, ell_train_pred,
+        residuals_train, R_train_pred,
         diagnostics['acf_lags'], diagnostics['acf_values'],
         save_path=os.path.join(args.output_dir, 'fig_residual_diagnostics.png')
     )

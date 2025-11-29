@@ -8,68 +8,68 @@ In prediction markets, liquidity—the ease with which participants can trade wi
 
 ### 2.1 Core Dynamical System
 
-We model liquidity ℓ(τ) as a function of time-to-resolution τ = T - t, where T is the market resolution time and t is calendar time. The fundamental dynamical law is:
+We model liquidity liq(tau) as a function of time-to-resolution tau = T - t, where T is the market resolution time and t is calendar time. The fundamental dynamical law is:
 
 ```
-dℓ/dτ = a·I(τ) - b·R(τ) + c·ℓ(τ)     (1)
+dliq/dtau = a·I(tau) - b·R(tau) + c·liq(tau)     (1)
 ```
 
 where:
-- **ℓ(τ)**: Liquidity level (units: price/share) - measures price impact per unit volume
-- **I(τ)**: Trading intensity (units: shares/time) - rate of market activity
-- **R(τ)**: Bid-ask spread (units: price) - transaction cost
+- **liq(tau)**: Liquidity level (units: price/share) - measures price impact per unit volume
+- **I(tau)**: Trading intensity (units: shares/time) - rate of market activity
+- **R(tau)**: Bid-ask spread (units: price) - transaction cost
 - **a, b, c**: Model parameters to be estimated from data
 
 **Interpretation of terms:**
-1. `a·I(τ)`: Trading intensity *increases* liquidity by revealing information and attracting market makers (a > 0)
-2. `-b·R(τ)`: Wide spreads *reduce* liquidity growth, representing adverse selection costs (b > 0)
-3. `c·ℓ(τ)`: Exponential growth/decay term (c can be positive or negative)
+1. `a·I(tau)`: Trading intensity *increases* liquidity by revealing information and attracting market makers (a > 0)
+2. `-b·R(tau)`: Wide spreads *reduce* liquidity growth, representing adverse selection costs (b > 0)
+3. `c·liq(tau)`: Exponential growth/decay term (c can be positive or negative)
 
 ### 2.2 Bounded Variant
 
 To prevent unrealistic unbounded growth, we introduce upper and lower bounds:
 
 ```
-dℓ/dτ = (a·I(τ) - b·R(τ)) + c·ℓ(τ)·(1 - ℓ(τ)/ℓ_max) - d·max{ℓ_min - ℓ(τ), 0}     (2)
+dliq/dtau = (a·I(tau) - b·R(tau)) + c·liq(tau)·(1 - liq(tau)/liq_max) - d·max{liq_min - liq(tau), 0}     (2)
 ```
 
 where:
-- **ℓ_max**: Upper bound on liquidity (carrying capacity)
-- **ℓ_min**: Lower bound on liquidity (floor)
-- **d**: Restoring force parameter when ℓ drops below ℓ_min
+- **liq_max**: Upper bound on liquidity (carrying capacity)
+- **liq_min**: Lower bound on liquidity (floor)
+- **d**: Restoring force parameter when liq drops below liq_min
 
-The logistic term `c·ℓ·(1 - ℓ/ℓ_max)` provides soft upper saturation, while the max term provides a soft lower floor.
+The logistic term `c·liq·(1 - liq/liq_max)` provides soft upper saturation, while the max term provides a soft lower floor.
 
 ### 2.3 Analytic Solution (Linear Case)
 
-For the linear model (1) with time-varying forcing I(τ) and R(τ), the solution is:
+For the linear model (1) with time-varying forcing I(tau) and R(tau), the solution is:
 
 ```
-ℓ(τ) = exp(c·τ) · [ℓ_0 + ∫₀^τ exp(-c·s)·(a·I(s) - b·R(s)) ds]     (3)
+liq(tau) = exp(c·tau) · [liq_0 + ∫₀^tau exp(-c·s)·(a·I(s) - b·R(s)) ds]     (3)
 ```
 
-where ℓ_0 = ℓ(0) is the initial condition.
+where liq_0 = liq(0) is the initial condition.
 
 **Derivation:**
-This is a first-order linear ODE of the form dℓ/dτ - c·ℓ = a·I(τ) - b·R(τ).
+This is a first-order linear ODE of the form dliq/dtau - c·liq = a·I(tau) - b·R(tau).
 
-Using integrating factor μ(τ) = exp(-c·τ):
+Using integrating factor μ(tau) = exp(-c·tau):
 ```
-d/dτ[μ(τ)·ℓ(τ)] = μ(τ)·(a·I(τ) - b·R(τ))
-```
-
-Integrating from 0 to τ:
-```
-μ(τ)·ℓ(τ) - μ(0)·ℓ_0 = ∫₀^τ μ(s)·(a·I(s) - b·R(s)) ds
+d/dtau[μ(tau)·liq(tau)] = μ(tau)·(a·I(tau) - b·R(tau))
 ```
 
-Substituting μ(τ) = exp(-c·τ) and solving for ℓ(τ) yields equation (3).
+Integrating from 0 to tau:
+```
+μ(tau)·liq(tau) - μ(0)·liq_0 = ∫₀^tau μ(s)·(a·I(s) - b·R(s)) ds
+```
+
+Substituting μ(tau) = exp(-c·tau) and solving for liq(tau) yields equation (3).
 
 ## 3. Observable Quantities from Order Book Data
 
 The critical challenge is that we only observe limit order book (CLOB) snapshots, not individual trade executions. We therefore construct empirical proxies for each theoretical quantity.
 
-### 3.1 Bid-Ask Spread R(τ)
+### 3.1 Bid-Ask Spread R(tau)
 
 **Definition:** The spread is directly observable from the top of the book:
 ```
@@ -85,9 +85,9 @@ R̃(t) = (p_ask - p_bid) / p_mid,   where p_mid = (p_ask + p_bid)/2
 
 **Units:** Price (dollars, or unitless if normalized)
 
-### 3.2 Liquidity ℓ(τ) via Price Impact Simulation
+### 3.2 Liquidity liq(tau) via Price Impact Simulation
 
-**Motivation:** In market microstructure theory, liquidity is inversely related to price impact. For a small trade of size Δq, the price impact is Δp ≈ λ·Δq where λ is the Kyle lambda (price impact coefficient). We identify ℓ with this impact coefficient.
+**Motivation:** In market microstructure theory, liquidity is inversely related to price impact. For a small trade of size Δq, the price impact is Δp ≈ λ·Δq where λ is the Kyle lambda (price impact coefficient). We identify liq with this impact coefficient.
 
 **Algorithm:**
 1. For each order book snapshot at time t:
@@ -98,17 +98,17 @@ R̃(t) = (p_ask - p_bid) / p_mid,   where p_mid = (p_ask + p_bid)/2
    - Walk the ask ladder, accumulating sizes until cumulative ≥ Δq
    - Compute volume-weighted average execution price p_exec_buy
    - Compute Δp_buy = p_exec_buy - p_mid
-   - Liquidity measure: ℓ_buy = Δp_buy / Δq
+   - Liquidity measure: liq_buy = Δp_buy / Δq
 
 3. **Sell-side liquidity:**
    - Walk the bid ladder, accumulating sizes until cumulative ≥ Δq
    - Compute volume-weighted average execution price p_exec_sell
    - Compute Δp_sell = p_mid - p_exec_sell
-   - Liquidity measure: ℓ_sell = Δp_sell / Δq
+   - Liquidity measure: liq_sell = Δp_sell / Δq
 
 4. **Symmetric estimate:**
    ```
-   ℓ_obs(t) = (ℓ_buy + ℓ_sell) / 2
+   liq_obs(t) = (liq_buy + liq_sell) / 2
    ```
 
 **Data requirements:** Full order book (all bid/ask price-size pairs)
@@ -117,7 +117,7 @@ R̃(t) = (p_ask - p_bid) / p_mid,   where p_mid = (p_ask + p_bid)/2
 
 **Sensitivity:** Choice of Δq affects measurement. We will conduct sensitivity analysis over range [0.1, 1, 10] shares.
 
-### 3.3 Trading Intensity I(τ)
+### 3.3 Trading Intensity I(tau)
 
 **Challenge:** Without observing individual trades, we must infer activity from changes in the order book state.
 
@@ -156,18 +156,18 @@ For simplicity, we begin with I_depth as the primary proxy (γ₁=1, γ₂=γ₃
 
 ## 4. Parameter Estimation
 
-We estimate parameters θ = (a, b, c) for the linear model or θ = (a, b, c, d, ℓ_max, ℓ_min) for the bounded model.
+We estimate parameters θ = (a, b, c) for the linear model or θ = (a, b, c, d, liq_max, liq_min) for the bounded model.
 
 ### 4.1 Method A: Derivative-Residual Fit (Fast, Local)
 
-**Approach:** Approximate the left-hand side dℓ/dτ by finite differences, then minimize squared residuals.
+**Approach:** Approximate the left-hand side dliq/dtau by finite differences, then minimize squared residuals.
 
 **Algorithm:**
-1. Smooth ℓ_obs(t) with moving average or low-pass filter
-2. Compute numerical derivative: ℓ̇_obs(tᵢ) ≈ (ℓ_obs(tᵢ) - ℓ_obs(tᵢ₋₁)) / Δt
+1. Smooth liq_obs(t) with moving average or low-pass filter
+2. Compute numerical derivative: liq̇_obs(tᵢ) ≈ (liq_obs(tᵢ) - liq_obs(tᵢ₋₁)) / Δt
 3. For linear model, solve:
    ```
-   min_(a,b,c) Σᵢ [ℓ̇_obs(tᵢ) - (a·I(tᵢ) - b·R(tᵢ) + c·ℓ_obs(tᵢ))]²
+   min_(a,b,c) Σᵢ [liq̇_obs(tᵢ) - (a·I(tᵢ) - b·R(tᵢ) + c·liq_obs(tᵢ))]²
    ```
 4. Use scipy.optimize.least_squares with bounds (a≥0, b≥0) and robust loss function (Huber or soft_l1) to reduce sensitivity to outliers.
 
@@ -177,18 +177,18 @@ We estimate parameters θ = (a, b, c) for the linear model or θ = (a, b, c, d, 
 
 ### 4.2 Method B: Trajectory Fit (Integrate-then-Fit) (Robust, Preferred)
 
-**Approach:** For candidate parameters θ, numerically integrate the ODE from τ=0, then compare simulated trajectory to observations.
+**Approach:** For candidate parameters θ, numerically integrate the ODE from tau=0, then compare simulated trajectory to observations.
 
 **Algorithm:**
 1. Define objective function:
    ```
-   L(θ) = Σᵢ [ℓ_obs(tᵢ) - ℓ_model(tᵢ; θ)]²
+   L(θ) = Σᵢ [liq_obs(tᵢ) - liq_model(tᵢ; θ)]²
    ```
 2. For each evaluation of L(θ):
-   - Given initial condition ℓ₀ = ℓ_obs(t₀)
-   - Integrate dℓ/dτ numerically (RK4 or solve_ivp) over observed time grid
+   - Given initial condition liq₀ = liq_obs(t₀)
+   - Integrate dliq/dtau numerically (RK4 or solve_ivp) over observed time grid
    - Use observed I(t) and R(t) as time-varying inputs (interpolate between snapshots)
-   - Compute ℓ_model(tᵢ; θ) at each observation time
+   - Compute liq_model(tᵢ; θ) at each observation time
 3. Minimize L(θ) using scipy.optimize.least_squares or scipy.optimize.minimize
 4. Use bounds: a≥0, b≥0, -10≤c≤10, d≥0 (if bounded model)
 5. Multiple random restarts to check for local minima
@@ -204,14 +204,14 @@ We estimate parameters θ = (a, b, c) for the linear model or θ = (a, b, c, d, 
 ### 5.1 Goodness of Fit
 
 **Metrics:**
-- **Residual sum of squares (RSS):** Σᵢ (ℓ_obs(tᵢ) - ℓ_model(tᵢ))²
-- **Coefficient of determination (R²):** 1 - RSS/TSS, where TSS = Σᵢ (ℓ_obs(tᵢ) - ℓ̄_obs)²
+- **Residual sum of squares (RSS):** Σᵢ (liq_obs(tᵢ) - liq_model(tᵢ))²
+- **Coefficient of determination (R²):** 1 - RSS/TSS, where TSS = Σᵢ (liq_obs(tᵢ) - liq̄_obs)²
 - **Root mean squared error (RMSE):** sqrt(RSS / N)
-- **Mean absolute percentage error (MAPE):** (1/N) Σᵢ |ℓ_obs(tᵢ) - ℓ_model(tᵢ)| / ℓ_obs(tᵢ)
+- **Mean absolute percentage error (MAPE):** (1/N) Σᵢ |liq_obs(tᵢ) - liq_model(tᵢ)| / liq_obs(tᵢ)
 
 **Plots:**
-- Observed vs. predicted ℓ(t) time series (train and test sets)
-- Scatter plot: ℓ_model vs. ℓ_obs with 45° reference line
+- Observed vs. predicted liq(t) time series (train and test sets)
+- Scatter plot: liq_model vs. liq_obs with 45° reference line
 
 ### 5.2 Residual Analysis
 
@@ -234,7 +234,7 @@ We estimate parameters θ = (a, b, c) for the linear model or θ = (a, b, c, d, 
 ### 5.4 Sensitivity Analysis
 
 **Test sensitivity to:**
-1. **Simulated trade size Δq:** Vary over [0.1, 1, 10] shares; plot ℓ_obs(Δq) and fitted parameters
+1. **Simulated trade size Δq:** Vary over [0.1, 1, 10] shares; plot liq_obs(Δq) and fitted parameters
 2. **Choice of I(t) proxy:** Compare models using I_depth, I_signed, I_rate, and combined
 3. **Smoothing window:** Vary moving average window from 1 to 20 snapshots
 4. **Market conditions:** Stratify by time-to-resolution (early vs. late market life)
@@ -255,7 +255,7 @@ We estimate parameters θ = (a, b, c) for the linear model or θ = (a, b, c, d, 
 **Compare:**
 1. Linear model (1) vs. bounded model (2)
 2. Different I(t) proxy choices
-3. Null model: dℓ/dτ = 0 (constant liquidity baseline)
+3. Null model: dliq/dtau = 0 (constant liquidity baseline)
 
 **Criteria:**
 - **Akaike Information Criterion (AIC):** 2k - 2ln(L), where k = # parameters, L = likelihood
@@ -270,7 +270,7 @@ Prefer model with lowest AIC/BIC and best out-of-sample performance.
 
 2. **Causality:** The model describes correlation and dynamics but does not establish causal mechanisms. Market maker behavior, information arrival, and strategic trading are unmodeled.
 
-3. **Microstructure noise:** Order book snapshots contain noise from fleeting quotes and spoofing, which can bias ℓ_obs.
+3. **Microstructure noise:** Order book snapshots contain noise from fleeting quotes and spoofing, which can bias liq_obs.
 
 4. **Parameter identifiability:** If I(t) and R(t) are highly correlated (collinear), parameters a and b may be poorly identified. Check variance inflation factors (VIF).
 
@@ -278,7 +278,7 @@ Prefer model with lowest AIC/BIC and best out-of-sample performance.
 
 6. **Time resolution:** Snapshot frequency (Δt ~ 5-10s) may miss high-frequency dynamics.
 
-7. **ℓ definition:** Our ℓ_obs depends on choice of Δq and measures *local* price impact, not global market depth.
+7. **liq definition:** Our liq_obs depends on choice of Δq and measures *local* price impact, not global market depth.
 
 ## 7. Data Pipeline Summary
 
@@ -288,10 +288,10 @@ Prefer model with lowest AIC/BIC and best out-of-sample performance.
 
 **Step 2:** Compute observables for each snapshot:
 - R(t) = best_ask - best_bid
-- ℓ_obs(t) via price impact simulation (walk-the-book algorithm)
+- liq_obs(t) via price impact simulation (walk-the-book algorithm)
 - I(t) via depth-change proxy
 
-**Step 3:** Convert to τ = T - t (time-to-resolution) and resample to regular grid
+**Step 3:** Convert to tau = T - t (time-to-resolution) and resample to regular grid
 
 **Step 4:** Smooth I(t) and R(t) lightly (3-point moving average)
 
@@ -341,7 +341,7 @@ Prefer model with lowest AIC/BIC and best out-of-sample performance.
 **4. Data and Observable Construction**
 - Section 4.1: Data source (Polymarket CLOB)
 - Section 4.2: Order book structure
-- Section 4.3: Proxy construction for R, ℓ, I (detailed algorithms)
+- Section 4.3: Proxy construction for R, liq, I (detailed algorithms)
 - Section 4.4: Descriptive statistics
 
 **5. Estimation Methodology**
@@ -389,7 +389,7 @@ All analysis will be implemented in Python 3.10+ using:
 - **scikit-learn:** Block bootstrap (via TimeSeriesSplit or custom)
 
 **Key modules:**
-1. `observables.py`: Compute R(t), ℓ(t), I(t) from order book snapshots
+1. `observables.py`: Compute R(t), liq(t), I(t) from order book snapshots
 2. `model.py`: Define ODE right-hand side; integrate trajectories
 3. `estimation.py`: Implement Method A and Method B parameter fitting
 4. `validation.py`: Goodness-of-fit, residual tests, bootstrap, cross-validation

@@ -18,59 +18,61 @@ from model import integrate_ode_linear, integrate_ode_bounded
 
 def finite_difference_derivative(
     tau: np.ndarray,
-    ell: np.ndarray,
+    R: np.ndarray,
     method: str = 'central',
 ) -> np.ndarray:
     """
-    Compute numerical derivative dℓ/dτ via finite differences.
+    Compute numerical derivative dliq/dtau via finite differences.
 
     Parameters
     ----------
     tau : 1D array of time-to-resolution (must be sorted)
-    ell : 1D array of liquidity values
+    R : 1D array of liquidity values
     method : 'forward', 'backward', or 'central'
 
     Returns
     -------
-    dell_dtau : numerical derivative (same length as tau, with NaNs at boundaries)
+    dR_dtau : numerical derivative (same length as tau, with NaNs at boundaries)
     """
     n = len(tau)
-    dell = np.full(n, np.nan)
+    dR = np.full(n, np.nan)
 
     if method == 'central':
         for i in range(1, n - 1):
-            dell[i] = (ell[i + 1] - ell[i - 1]) / (tau[i + 1] - tau[i - 1])
+            dR[i] = (R[i + 1] - R[i - 1]) / (tau[i + 1] - tau[i - 1])
     elif method == 'forward':
         for i in range(n - 1):
-            dell[i] = (ell[i + 1] - ell[i]) / (tau[i + 1] - tau[i])
+            dR[i] = (R[i + 1] - R[i]) / (tau[i + 1] - tau[i])
     elif method == 'backward':
         for i in range(1, n):
-            dell[i] = (ell[i] - ell[i - 1]) / (tau[i] - tau[i - 1])
+            dR[i] = (R[i] - R[i - 1]) / (tau[i] - tau[i - 1])
     else:
         raise ValueError(f"Unknown method: {method}")
 
-    return dell
+    return dR
 
 
 def fit_linear_method_a(
     tau: np.ndarray,
-    ell_obs: np.ndarray,
-    I_obs: np.ndarray,
     R_obs: np.ndarray,
-    initial_guess: Tuple[float, float, float] = (1e-5, 0.1, -0.01),
+    I_obs: np.ndarray,
+    D_obs: np.ndarray,
+    initial_guess: Tuple[float, float, float] = (1e-5, 1e-6, -0.01),
     bounds: Tuple[Tuple, Tuple] = ((0, 0, -10), (np.inf, np.inf, 10)),
 ) -> Dict:
     """
-    Method A: Fit linear model by minimizing derivative residuals.
+    Method A: Fit linear spread model by minimizing derivative residuals.
 
-    min_{a,b,c} Σ [dℓ/dτ - (a·I - b·R + c·ell)]²
+    NEW MODEL: dR/dτ = a·I(τ) - b·D(τ) + c·R(τ)
+
+    min_{a,b,c} Σ [dR/dτ - (a·I - b·D + c·R)]²
 
     Parameters
     ----------
     tau : 1D array, time-to-resolution
-    ell_obs : observed liquidity
-    I_obs : observed intensity
-    R_obs : observed spread
+    R_obs : observed spread (DEPENDENT VARIABLE)
+    I_obs : observed trading intensity
+    D_obs : observed market depth
     initial_guess : (a0, b0, c0)
     bounds : ((a_min, b_min, c_min), (a_max, b_max, c_max))
 
@@ -79,15 +81,15 @@ def fit_linear_method_a(
     result : dict with keys 'params', 'success', 'message', 'residuals', 'cost'
     """
     # Compute derivative
-    dell_obs = finite_difference_derivative(tau, ell_obs, method='central')
+    dR_obs = finite_difference_derivative(tau, R_obs, method='central')
 
     # Filter out NaNs
-    valid = ~(np.isnan(dell_obs) | np.isnan(ell_obs) | np.isnan(I_obs) | np.isnan(R_obs))
+    valid = ~(np.isnan(dR_obs) | np.isnan(R_obs) | np.isnan(I_obs) | np.isnan(D_obs))
     tau_valid = tau[valid]
-    dell_valid = dell_obs[valid]
-    ell_valid = ell_obs[valid]
-    I_valid = I_obs[valid]
+    dR_valid = dR_obs[valid]
     R_valid = R_obs[valid]
+    I_valid = I_obs[valid]
+    D_valid = D_obs[valid]
 
     if len(tau_valid) < 10:
         warnings.warn("Insufficient valid data points for Method A")
@@ -102,8 +104,8 @@ def fit_linear_method_a(
     # Residual function
     def residuals(theta):
         a, b, c = theta
-        predicted_dell = a * I_valid - b * R_valid + c * ell_valid
-        return dell_valid - predicted_dell
+        predicted_dR = a * I_valid - b * D_valid + c * R_valid
+        return dR_valid - predicted_dR
 
     # Optimize
     res = least_squares(
@@ -127,22 +129,25 @@ def fit_linear_method_a(
 
 def fit_linear_method_b(
     tau: np.ndarray,
-    ell_obs: np.ndarray,
-    I_obs: np.ndarray,
     R_obs: np.ndarray,
-    initial_guess: Tuple[float, float, float] = (1e-5, 0.1, -0.01),
+    I_obs: np.ndarray,
+    D_obs: np.ndarray,
+    initial_guess: Tuple[float, float, float] = (1e-5, 1e-6, -0.01),
     bounds: Tuple[Tuple, Tuple] = ((0, 0, -10), (np.inf, np.inf, 10)),
 ) -> Dict:
     """
-    Method B: Fit linear model by trajectory matching (integrate-then-fit).
+    Method B: Fit linear spread model by trajectory matching (integrate-then-fit).
 
-    min_{a,b,c} Σ [ell_obs(τᵢ) - ell_model(τᵢ; a,b,c)]²
+    NEW MODEL: dR/dτ = a·I(τ) - b·D(τ) + c·R(τ)
+
+    min_{a,b,c} Σ [R_obs(τᵢ) - R_model(τᵢ; a,b,c)]²
 
     Parameters
     ----------
     tau : 1D array (sorted)
-    ell_obs : observed liquidity
-    I_obs, R_obs : observed inputs
+    R_obs : observed spread (DEPENDENT VARIABLE)
+    I_obs : observed trading intensity
+    D_obs : observed market depth
     initial_guess : (a0, b0, c0)
     bounds : parameter bounds
 
@@ -151,11 +156,11 @@ def fit_linear_method_b(
     result : dict
     """
     # Filter NaNs
-    valid = ~(np.isnan(ell_obs) | np.isnan(I_obs) | np.isnan(R_obs))
+    valid = ~(np.isnan(R_obs) | np.isnan(I_obs) | np.isnan(D_obs))
     tau_valid = tau[valid]
-    ell_valid = ell_obs[valid]
-    I_valid = I_obs[valid]
     R_valid = R_obs[valid]
+    I_valid = I_obs[valid]
+    D_valid = D_obs[valid]
 
     if len(tau_valid) < 10:
         warnings.warn("Insufficient valid data for Method B")
@@ -167,25 +172,23 @@ def fit_linear_method_b(
             'cost': np.nan,
         }
 
-    # Create interpolators for I and R
+    # Create interpolators for I and D
     I_func = interp1d(tau_valid, I_valid, kind='linear', fill_value='extrapolate')
-    R_func = interp1d(tau_valid, R_valid, kind='linear', fill_value='extrapolate')
-    
-    print("moved past interpolation")
+    D_func = interp1d(tau_valid, D_valid, kind='linear', fill_value='extrapolate')
 
     # Initial condition
-    ell0 = ell_valid[0]
+    R0 = R_valid[0]
 
     # Residual function: integrate ODE and compare
     def residuals(theta):
         a, b, c = theta
         try:
-            ell_model = integrate_ode_linear(tau_valid, ell0, a, b, c, I_func, R_func)
-            return ell_valid - ell_model
+            R_model = integrate_ode_linear(tau_valid, R0, a, b, c, I_func, D_func)
+            return R_valid - R_model
         except Exception as e:
             # If integration fails, return large residuals
             warnings.warn(f"ODE integration failed: {e}")
-            return np.full_like(ell_valid, 1e6)
+            return np.full_like(R_valid, 1e6)
 
     # Optimize
     res = least_squares(
@@ -196,7 +199,7 @@ def fit_linear_method_b(
         verbose=2,
         max_nfev=200,  # limit function evaluations
     )
-    print("got past least squares")
+
     a_fit, b_fit, c_fit = res.x
 
     return {
@@ -210,7 +213,7 @@ def fit_linear_method_b(
 
 def fit_bounded_method_b(
     tau: np.ndarray,
-    ell_obs: np.ndarray,
+    D_obs: np.ndarray,
     I_obs: np.ndarray,
     R_obs: np.ndarray,
     initial_guess: Tuple = (1e-5, 0.1, -0.01, 0.01, 0.01, 0.0001),
@@ -219,12 +222,12 @@ def fit_bounded_method_b(
     """
     Method B for bounded model.
 
-    Parameters: (a, b, c, d, ell_max, ell_min)
+    Parameters: (a, b, c, d, R_max, R_min)
 
     Parameters
     ----------
-    tau, ell_obs, I_obs, R_obs : data
-    initial_guess : (a0, b0, c0, d0, ell_max0, ell_min0)
+    tau, D_obs, I_obs, R_obs : data
+    initial_guess : (a0, b0, c0, d0, R_max0, R_min0)
     bounds : parameter bounds
 
     Returns
@@ -232,16 +235,16 @@ def fit_bounded_method_b(
     result : dict
     """
     # Filter NaNs
-    valid = ~(np.isnan(ell_obs) | np.isnan(I_obs) | np.isnan(R_obs))
+    valid = ~(np.isnan(D_obs) | np.isnan(I_obs) | np.isnan(R_obs))
     tau_valid = tau[valid]
-    ell_valid = ell_obs[valid]
+    D_valid = D_obs[valid]
     I_valid = I_obs[valid]
     R_valid = R_obs[valid]
 
     if len(tau_valid) < 10:
         warnings.warn("Insufficient valid data for bounded Method B")
         return {
-            'params': {'a': np.nan, 'b': np.nan, 'c': np.nan, 'd': np.nan, 'ell_max': np.nan, 'ell_min': np.nan},
+            'params': {'a': np.nan, 'b': np.nan, 'c': np.nan, 'd': np.nan, 'R_max': np.nan, 'r_min': np.nan},
             'success': False,
             'message': 'Insufficient data',
             'residuals': np.array([]),
@@ -249,36 +252,36 @@ def fit_bounded_method_b(
         }
 
     I_func = interp1d(tau_valid, I_valid, kind='linear', fill_value='extrapolate')
-    R_func = interp1d(tau_valid, R_valid, kind='linear', fill_value='extrapolate')
+    D_func = interp1d(tau_valid, D_valid, kind='linear', fill_value='extrapolate')
 
-    ell0 = ell_valid[0]
+    R0 = R_valid[0]
 
     def residuals(theta):
-        a, b, c, d, ell_max, ell_min = theta
+        a, b, c, d, R_max, R_min = theta
         try:
-            ell_model = integrate_ode_bounded(
-                tau_valid, ell0, a, b, c, d, ell_max, ell_min, I_func, R_func
+            R_model = integrate_ode_bounded(
+                tau_valid, R0, a, b, c, d, R_max, R_min, I_func, D_func
             )
-            return ell_valid - ell_model
+            return R_valid - R_model
         except Exception as e:
             warnings.warn(f"Bounded ODE integration failed: {e}")
-            return np.full_like(ell_valid, 1e6)
+            return np.full_like(R_valid, 1e6)
 
     res = least_squares(
         residuals,
         x0=initial_guess,
         bounds=bounds,
         loss='soft_l1',
-        verbose=0,
+        verbose=2,
         max_nfev=300,
     )
 
-    a_fit, b_fit, c_fit, d_fit, ell_max_fit, ell_min_fit = res.x
+    a_fit, b_fit, c_fit, d_fit, r_max_fit, r_min_fit = res.x
 
     return {
         'params': {
             'a': a_fit, 'b': b_fit, 'c': c_fit, 'd': d_fit,
-            'ell_max': ell_max_fit, 'ell_min': ell_min_fit
+            'r_max': r_max_fit, 'r_min': r_min_fit
         },
         'success': res.success,
         'message': res.message,
@@ -375,7 +378,8 @@ def compute_aic_bic(residuals: np.ndarray, n_params: int) -> Tuple[float, float]
 
 if __name__ == '__main__':
     # Example: fit synthetic data
-    np.random.seed(42)
+    # This isn't actually called. We call the functions above as modules from other functions
+    np.random.seed(0)
 
     tau = np.linspace(0, 100, 200)
     a_true, b_true, c_true = 0.00001, 0.1, -0.01

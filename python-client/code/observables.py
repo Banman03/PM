@@ -2,7 +2,7 @@
 """
 observables.py
 
-Compute observable quantities (R, ℓ, I) from order book snapshots.
+Compute observable quantities (R, liq, I) from order book snapshots.
 """
 
 import numpy as np
@@ -38,7 +38,7 @@ def compute_liquidity_from_book(
     trade_size: float = 1.0,
 ) -> Tuple[float, float, float]:
     """
-    Estimate liquidity ℓ via price impact simulation.
+    Estimate liquidity liq via price impact simulation.
 
     Walk the order book to simulate executing a trade of size `trade_size`,
     compute volume-weighted average execution price, and return price impact per share.
@@ -58,7 +58,7 @@ def compute_liquidity_from_book(
     Notes
     -----
     - If insufficient depth, returns np.nan
-    - Interpretation: higher ℓ means less liquid (larger price impact per share)
+    - Interpretation: higher liq means less liquid (larger price impact per share)
     """
     if not bids or not asks:
         return np.nan, np.nan, np.nan
@@ -294,28 +294,34 @@ def compute_trading_intensity_signed(df: pd.DataFrame) -> pd.Series:
     return pd.Series(I_signed, index=df.index, name='I_signed')
 
 
-def compute_liquidity_from_depth(df: pd.DataFrame, depth_col: str = 'top5_depth_sum') -> pd.Series:
+def compute_liquidity_from_spread_volume(df: pd.DataFrame) -> pd.Series:
     """
-    Compute liquidity as inverse of order book depth.
+    Compute liquidity proxy based on spread and volume.
 
-    ℓ = 1 / depth
+    liq = R / V   (spread per unit volume)
 
-    Higher depth → lower ℓ → more liquid
-    Lower depth → higher ℓ → less liquid
+    Where:
+    - R = bid-ask spread
+    - V = recent trade volume or depth change
+
+    Interpretation:
+    - Wide spread + low volume → high liq → illiquid
+    - Narrow spread + high volume → low liq → liquid
 
     Parameters
     ----------
-    df : DataFrame with depth column
-    depth_col : name of depth column (default: 'top5_depth_sum')
+    df : DataFrame with 'spread' and 'top5_depth_sum' columns
 
     Returns
     -------
     ell : Series of liquidity values
     """
-    depth = df[depth_col].values
+    spread = df['spread'].values
+    volume_proxy = df['top5_depth_sum'].values
 
+    # liq = spread / volume
     # Avoid division by zero
-    ell = np.where(depth > 0, 1.0 / depth, np.nan)
+    ell = np.where(volume_proxy > 0, spread / volume_proxy, np.nan)
 
     return pd.Series(ell, index=df.index, name='ell_avg')
 
@@ -330,42 +336,38 @@ def compute_all_observables(
     """
     End-to-end: load CSV, compute all observables, return unified DataFrame.
 
+    NEW MODEL: We model spread dynamics dR/dτ = a·I(τ) - b·D(τ) + c·R(τ)
+
     Parameters
     ----------
     csv_path : path to CSV from process_clob_data.py
     jsonl_path : path to original JSONL for full depth
-    trade_size : simulated trade size for liquidity estimation (if use_depth_liquidity=False)
+    trade_size : simulated trade size for liquidity estimation (unused now)
     normalized_spread : if True, compute R̃ instead of R
-    use_depth_liquidity : if True, use 1/depth as liquidity proxy (much faster and more stable)
+    use_depth_liquidity : ignored (kept for compatibility)
 
     Returns
     -------
     df : DataFrame with columns:
         - timestamp_ms, t_iso, best_bid, best_ask, mid, spread, ...
-        - R (bid-ask spread)
-        - ell_avg (liquidity)
-        - I_depth, I_signed (trading intensity proxies)
+        - R (bid-ask spread) - DEPENDENT VARIABLE
+        - D (depth) - INDEPENDENT VARIABLE
+        - I (trading intensity) - INDEPENDENT VARIABLE
     """
     # Load CSV
     df = pd.read_csv(csv_path)
 
-    # Compute spread
+    # Compute spread (DEPENDENT VARIABLE)
     df['R'] = compute_spread(df, normalized=normalized_spread)
 
-    # Compute liquidity
-    if use_depth_liquidity:
-        # Fast, stable proxy: inverse of depth
-        df['ell_avg'] = compute_liquidity_from_depth(df, depth_col='top5_depth_sum')
-    else:
-        # Slow, potentially unstable: price impact simulation
-        ell_df = compute_liquidity_series(df, jsonl_path, trade_size=trade_size)
-        df = pd.concat([df, ell_df], axis=1)
+    # Compute depth (INDEPENDENT VARIABLE - inverse liquidity proxy)
+    df['D'] = df['top5_depth_sum']
 
-    # Compute intensity proxies
+    # Compute intensity proxies (INDEPENDENT VARIABLE)
     df['I_depth'] = compute_trading_intensity_depth_change(df)
     df['I_signed'] = compute_trading_intensity_signed(df)
 
-    # Default combined intensity (just use I_depth for now)
+    # Default combined intensity
     df['I'] = df['I_depth']
 
     return df
@@ -373,7 +375,7 @@ def compute_all_observables(
 
 def convert_to_tau(df: pd.DataFrame, resolution_time_ms: int) -> pd.DataFrame:
     """
-    Convert calendar time t to time-to-resolution τ = T - t.
+    Convert calendar time t to time-to-resolution tau = T - t.
 
     Parameters
     ----------
@@ -396,7 +398,7 @@ def resample_regular_grid(
     n_points: int = 500,
 ) -> pd.DataFrame:
     """
-    Resample observables onto a regular grid in τ.
+    Resample observables onto a regular grid in tau.
 
     Parameters
     ----------
@@ -407,7 +409,7 @@ def resample_regular_grid(
 
     Returns
     -------
-    df_grid : DataFrame with regular τ grid and interpolated observables
+    df_grid : DataFrame with regular tau grid and interpolated observables
     """
     df = df.sort_values(tau_col).reset_index(drop=True)
 

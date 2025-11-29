@@ -409,13 +409,13 @@ def sensitivity_analysis_trade_size(
 
         # Extract data
         tau = df_obs['tau_sec'].values if 'tau_sec' in df_obs.columns else np.arange(len(df_obs))
-        ell = df_obs['ell_avg'].values
+        D = df_obs['D'].values
         I = df_obs['I'].values
         R = df_obs['R'].values
 
         # Fit
         try:
-            result = fit_func(tau, ell, I, R, **fit_kwargs)
+            result = fit_func(tau, D, I, R, **fit_kwargs)
             if result['success']:
                 row = {'trade_size': ts, **result['params'], 'cost': result['cost']}
             else:
