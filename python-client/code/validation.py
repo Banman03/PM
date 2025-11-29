@@ -117,10 +117,10 @@ def ljung_box_test(residuals: np.ndarray, lags: int = 10) -> Tuple[float, float]
     if len(residuals) < lags + 1:
         return np.nan, np.nan
 
-    result = acorr_ljungbox(residuals, lags=lags, return_df=False)
-    # result is (statistic, p_value) for each lag; take last
-    statistic = result[0][-1]
-    p_value = result[1][-1]
+    result = acorr_ljungbox(residuals, lags=lags, return_df=True)
+    # result is a DataFrame with columns 'lb_stat' and 'lb_pvalue'
+    statistic = result['lb_stat'].iloc[-1]
+    p_value = result['lb_pvalue'].iloc[-1]
 
     return statistic, p_value
 

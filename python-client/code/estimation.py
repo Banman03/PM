@@ -170,6 +170,8 @@ def fit_linear_method_b(
     # Create interpolators for I and R
     I_func = interp1d(tau_valid, I_valid, kind='linear', fill_value='extrapolate')
     R_func = interp1d(tau_valid, R_valid, kind='linear', fill_value='extrapolate')
+    
+    print("moved past interpolation")
 
     # Initial condition
     ell0 = ell_valid[0]
@@ -191,10 +193,10 @@ def fit_linear_method_b(
         x0=initial_guess,
         bounds=bounds,
         loss='soft_l1',
-        verbose=0,
+        verbose=2,
         max_nfev=200,  # limit function evaluations
     )
-
+    print("got past least squares")
     a_fit, b_fit, c_fit = res.x
 
     return {
@@ -312,7 +314,9 @@ def fit_with_multiple_restarts(
     for i in range(n_restarts):
         if i == 0:
             # First iteration: use provided initial_guess
+            print("using an initial guess")
             init_guess = kwargs.get('initial_guess', tuple((l + u) / 2 for l, u in zip(bounds_lower, bounds_upper)))
+            print("initial guess: ", init_guess)
         else:
             # Random initialization within bounds
             init_guess = tuple(

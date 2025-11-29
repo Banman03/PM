@@ -155,6 +155,7 @@ def main():
 
     if args.model_type == 'linear':
         # Initial guess and bounds
+        print("fitting linear method b")
         initial_guess = (1e-6, 0.01, -0.001)
         bounds = ((0, 0, -10), (1.0, 10.0, 10))
 
@@ -171,6 +172,7 @@ def main():
 
     elif args.model_type == 'bounded':
         # Estimate ell_max and ell_min from data
+        print("fitting bounded method b")
         ell_max_guess = np.nanmax(ell_train) * 1.5
         ell_min_guess = np.nanmin(ell_train) * 0.5
 
