@@ -105,6 +105,8 @@ def main():
     # -------------------------------------------------------------------------
     print("\n[2/7] Resampling to regular tau grid and smoothing...")
 
+    df_obs = df_obs.dropna(subset=['R', 'D', 'I']).reset_index(drop=True)
+
     df_grid = resample_regular_grid(
         df_obs,
         tau_col='tau_sec',
@@ -230,7 +232,6 @@ def main():
     print("monotone increasing:", np.all(diffs > 0))
     print("monotone decreasing:", np.all(diffs < 0))
 
-    return
     # Train predictions
     if args.model_type == 'linear':
         R_train_pred = integrate_ode_linear(

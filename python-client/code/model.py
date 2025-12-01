@@ -94,18 +94,24 @@ def integrate_ode_linear(
     R_traj : 1D array of R(tau) values at each tau_grid point
     """
     def rhs(tau, R):
-        return ode_linear(tau, R[0], a, b, c, I_func, D_func)
+        val = np.array([ ode_linear(tau, R[0], a, b, c, I_func, D_func) ], dtype=float)
+        # if not np.isfinite(val):
+            # print("NONFINITE RHS:", tau, R[0], val,
+            # I_func(tau), D_func(tau))
+        return val
 
     # solve_ivp expects t_span and t_eval
     tau_span = (tau_grid[0], tau_grid[-1])
 
     sol = solve_ivp(
         fun=rhs,
-        t_span=tau_span,
+        t_span=(tau_grid[0], tau_grid[-1]),
         y0=[R0],
         t_eval=tau_grid,
-        method='RK45',
-        dense_output=False,
+        method="BDF",
+        rtol=1e-6,
+        atol=1e-9,
+        max_step=10.0
     )
 
     if not sol.success:

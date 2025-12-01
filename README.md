@@ -22,7 +22,7 @@ TODO (for 421):
 '''
   Data Requirements & CLOB Endpoints
 
-  1. Trading Intensity I(τ) - Trade Volume Data
+  1. Trading Intensity I(tau) - Trade Volume Data
 
   Endpoint:
   GET https://clob.polymarket.com/trades?market={condition_id}
@@ -34,11 +34,11 @@ TODO (for 421):
 
   How to use:
   - Poll this endpoint periodically (e.g., every 1-5 seconds)
-  - Calculate I(τ) as: sum(trade_sizes) / time_interval
+  - Calculate I(tau) as: sum(trade_sizes) / time_interval
   - Higher trading volume means more liquidity depletion
 
   ---
-  2. Bid-Ask Spread R(τ)
+  2. Bid-Ask Spread R(tau)
 
   Endpoint:
   GET https://clob.polymarket.com/book?token_id={token_id}
@@ -46,7 +46,7 @@ TODO (for 421):
   What to collect:
   - Best bid price (highest buy order)
   - Best ask price (lowest sell order)
-  - Calculate spread: R(τ) = best_ask - best_bid
+  - Calculate spread: R(tau) = best_ask - best_bid
 
   You already have this! Your REST API mode (1) fetches the order book, which contains:
   {
@@ -57,7 +57,7 @@ TODO (for 421):
   The spread is: asks[0][0] - bids[0][0]
 
   ---
-  3. Liquidity Level ℓ(τ)
+  3. Liquidity Level liq(tau)
 
   Endpoint: Same as above
   GET https://clob.polymarket.com/book?token_id={token_id}
@@ -86,10 +86,10 @@ TODO (for 421):
 
   1. Use REST API mode (1) for order book snapshots (already implemented)
     - Poll every 5-10 seconds
-    - Extract: bid-ask spread R(τ), liquidity level ℓ(τ)
+    - Extract: bid-ask spread R(tau), liquidity level liq(tau)
   2. Add trades endpoint polling (new implementation needed)
     - Poll trades every 1-5 seconds
-    - Calculate: trading intensity I(τ)
+    - Calculate: trading intensity I(tau)
   3. Store time-series data:
   {
       "timestamp": 1234567890,
@@ -122,7 +122,7 @@ TODO (for 421):
   Calculate the differential equation terms:
 
   def calculate_liquidity_dynamics(current_data, previous_data, dt):
-      """Calculate dℓ/dτ and the three terms in the equation"""
+      """Calculate dliq/dtau and the three terms in the equation"""
 
       # Rate of change
       dl_dt = (current_data["l_t"] - previous_data["l_t"]) / dt
@@ -141,7 +141,7 @@ TODO (for 421):
       }
 
   1. Trades endpoint polling
-  2. Calculate I(τ) from trades
-  3. Calculate dℓ/dτ from consecutive liquidity measurements
+  2. Calculate I(tau) from trades
+  3. Calculate dliq/dtau from consecutive liquidity measurements
   4. Fit the model to estimate coefficients a, b, c
 '''
