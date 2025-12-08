@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 estimation.py
 
@@ -80,10 +79,8 @@ def fit_linear_method_a(
     -------
     result : dict with keys 'params', 'success', 'message', 'residuals', 'cost'
     """
-    # Compute derivative
     dR_obs = finite_difference_derivative(tau, R_obs, method='central')
 
-    # Filter out NaNs
     valid = ~(np.isnan(dR_obs) | np.isnan(R_obs) | np.isnan(I_obs) | np.isnan(D_obs))
     tau_valid = tau[valid]
     dR_valid = dR_obs[valid]
@@ -101,18 +98,15 @@ def fit_linear_method_a(
             'cost': np.nan,
         }
 
-    # Residual function
     def residuals(theta):
         a, b, c = theta
         predicted_dR = a * I_valid - b * D_valid + c * R_valid
         return dR_valid - predicted_dR
 
-    # Optimize
     res = least_squares(
         residuals,
         x0=initial_guess,
         bounds=bounds,
-        loss='soft_l1',  # robust to outliers
         verbose=0,
     )
 
@@ -155,7 +149,6 @@ def fit_linear_method_b(
     -------
     result : dict
     """
-    # Filter NaNs
     valid = ~(np.isnan(R_obs) | np.isnan(I_obs) | np.isnan(D_obs))
     tau_valid = tau[valid]
     R_valid = R_obs[valid]
@@ -172,32 +165,26 @@ def fit_linear_method_b(
             'cost': np.nan,
         }
 
-    # Create interpolators for I and D
     I_func = interp1d(tau_valid, I_valid, kind='linear', fill_value='extrapolate')
     D_func = interp1d(tau_valid, D_valid, kind='linear', fill_value='extrapolate')
 
-    # Initial condition
     R0 = R_valid[0]
 
-    # Residual function: integrate ODE and compare
     def residuals(theta):
         a, b, c = theta
         try:
             R_model = integrate_ode_linear(tau_valid, R0, a, b, c, I_func, D_func)
             return R_valid - R_model
         except Exception as e:
-            # If integration fails, return large residuals
             warnings.warn(f"ODE integration failed: {e}")
             return np.full_like(R_valid, 1e6)
 
-    # Optimize
     res = least_squares(
         residuals,
         x0=initial_guess,
         bounds=bounds,
         loss='soft_l1',
         verbose=2,
-        max_nfev=200,  # limit function evaluations
     )
 
     a_fit, b_fit, c_fit = res.x
@@ -234,7 +221,6 @@ def fit_bounded_method_b(
     -------
     result : dict
     """
-    # Filter NaNs
     valid = ~(np.isnan(D_obs) | np.isnan(I_obs) | np.isnan(R_obs))
     tau_valid = tau[valid]
     D_valid = D_obs[valid]
@@ -311,17 +297,14 @@ def fit_with_multiple_restarts(
     best_result = None
     best_cost = np.inf
 
-    # Extract bounds for randomization
     bounds_lower, bounds_upper = kwargs.get('bounds', ((0,), (1,)))
 
     for i in range(n_restarts):
         if i == 0:
-            # First iteration: use provided initial_guess
             print("using an initial guess")
             init_guess = kwargs.get('initial_guess', tuple((l + u) / 2 for l, u in zip(bounds_lower, bounds_upper)))
             print("initial guess: ", init_guess)
         else:
-            # Random initialization within bounds
             init_guess = tuple(
                 np.random.uniform(low, high) for low, high in zip(bounds_lower, bounds_upper)
             )
@@ -336,7 +319,6 @@ def fit_with_multiple_restarts(
             best_result = result
 
     if best_result is None:
-        # All attempts failed; return last result
         warnings.warn("All restarts failed; returning last attempt")
         best_result = result
 
@@ -367,7 +349,6 @@ def compute_aic_bic(residuals: np.ndarray, n_params: int) -> Tuple[float, float]
     if rss <= 0 or n <= n_params:
         return np.inf, np.inf
 
-    # Log-likelihood (assuming Gaussian)
     log_likelihood = -0.5 * n * (np.log(2 * np.pi) + np.log(rss / n) + 1)
 
     aic = 2 * n_params - 2 * log_likelihood
@@ -377,8 +358,6 @@ def compute_aic_bic(residuals: np.ndarray, n_params: int) -> Tuple[float, float]
 
 
 if __name__ == '__main__':
-    # Example: fit synthetic data
-    # This isn't actually called. We call the functions above as modules from other functions
     np.random.seed(0)
 
     tau = np.linspace(0, 100, 200)
@@ -392,10 +371,8 @@ if __name__ == '__main__':
 
     ell_true = integrate_ode_linear(tau, 0.001, a_true, b_true, c_true, I_func, R_func)
 
-    # Add noise
     ell_obs = ell_true + np.random.normal(0, 0.0001, size=len(tau))
 
-    # Fit using Method B
     print("Fitting linear model (Method B) to synthetic data...")
     result_b = fit_linear_method_b(tau, ell_obs, I_true, R_true)
 

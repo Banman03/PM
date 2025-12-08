@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 run_single_market.py
 
@@ -29,10 +29,10 @@ def extract_market_name_from_filename(filename):
     """Extract market name from filename (before the token ID)."""
     base = filename.replace('.jsonl', '')
     parts = base.split('_')
-    # Find where the numeric token ID starts
+    
     for i in range(len(parts)-1, -1, -1):
         if parts[i].isdigit():
-            # Everything before this is the market name
+            
             return '_'.join(parts[:i])
     return base
 
@@ -51,12 +51,12 @@ def get_last_timestamp(jsonl_path):
 
     data = json.loads(last_line)
 
-    # Try top-level timestamp
+    
     ts_ms = data.get('timestamp')
     if ts_ms and isinstance(ts_ms, (int, float)):
         return int(ts_ms)
 
-    # Try nested data.timestamp
+    
     if 'data' in data:
         ts_ms = data['data'].get('timestamp')
         if ts_ms:
@@ -76,13 +76,11 @@ def main():
     parser.add_argument('--output-dir', help='Output directory (auto-generated if not specified)')
     parser.add_argument('--trade-size', type=float, default=1.0)
     parser.add_argument('--model-type', choices=['linear', 'bounded'], default='linear')
-    parser.add_argument('--skip-bootstrap', action='store_true')
-    parser.add_argument('--skip-sensitivity', action='store_true')
     parser.add_argument('--force-csv-regen', action='store_true', help='Force regeneration of CSV file')
 
     args = parser.parse_args()
 
-    # Extract info from filename
+    
     jsonl_filename = os.path.basename(args.jsonl_file)
     token_id = extract_token_id_from_filename(jsonl_filename)
     market_name = extract_market_name_from_filename(jsonl_filename)
@@ -94,7 +92,7 @@ def main():
     print(f"Market: {market_name}")
     print(f"Token ID: {token_id}")
 
-    # Extract resolution time from last timestamp in JSONL
+    
     print("Extracting resolution time from last JSONL timestamp...")
     resolution_ms = get_last_timestamp(args.jsonl_file)
 
@@ -104,12 +102,12 @@ def main():
 
     print(f"Resolution time: {resolution_ms} ms")
 
-    # Convert to readable format
+    
     from datetime import datetime, timezone
     dt = datetime.fromtimestamp(resolution_ms / 1000.0, tz=timezone.utc)
     print(f"Resolution time (readable): {dt.isoformat()}")
 
-    # Generate or find CSV
+    
     jsonl_dir = os.path.dirname(args.jsonl_file) or '.'
     csv_dir = os.path.join(os.path.dirname(jsonl_dir), 'csvs')
     os.makedirs(csv_dir, exist_ok=True)
@@ -132,14 +130,14 @@ def main():
     else:
         print(f"Using existing CSV: {csv_path}")
 
-    # Set output directory
+    
     if not args.output_dir:
         safe_name = market_name.replace(' ', '_').replace('/', '_').replace('.', '')
         args.output_dir = f"results/{safe_name}_{token_id}"
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Build command
+    
     cmd = [
         'python3', 'pipeline.py',
         '--csv', csv_path,
@@ -150,15 +148,10 @@ def main():
         '--model-type', args.model_type,
     ]
 
-    if args.skip_bootstrap:
-        cmd.append('--skip-bootstrap')
-    if args.skip_sensitivity:
-        cmd.append('--skip-sensitivity')
-
     print(f"\nRunning pipeline...")
     print(f"Command: {' '.join(cmd)}\n")
 
-    # Run pipeline
+    
     result = subprocess.run(cmd)
 
     if result.returncode == 0:

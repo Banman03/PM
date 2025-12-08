@@ -55,7 +55,6 @@ def extract_token_id_from_filename(filename):
     Extract token ID from filename.
 
     Filename format: MarketName_TOKEN_ID.jsonl
-    Example: Georgia_vs._Georgia_Tech_20812556181257502299452162938829645659671675918267704479092636289804545785305.jsonl
     """
     base = filename.replace('.jsonl', '')
     parts = base.split('_')
@@ -112,7 +111,6 @@ def main():
             skipped += 1
             continue
 
-        # Extract resolution time from last timestamp
         resolution_ms = get_last_timestamp(jsonl_path)
 
         if resolution_ms is None:

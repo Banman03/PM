@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 validation.py
 
@@ -31,7 +31,7 @@ def compute_goodness_of_fit(
     -------
     metrics : dict with keys 'r2', 'rmse', 'mae', 'mape'
     """
-    # Remove NaNs
+    
     valid = ~(np.isnan(y_obs) | np.isnan(y_pred))
     y_obs = y_obs[valid]
     y_pred = y_pred[valid]
@@ -39,21 +39,21 @@ def compute_goodness_of_fit(
     if len(y_obs) == 0:
         return {'r2': np.nan, 'rmse': np.nan, 'mae': np.nan, 'mape': np.nan}
 
-    # Residuals
+    
     residuals = y_obs - y_pred
     ss_res = np.sum(residuals ** 2)
     ss_tot = np.sum((y_obs - np.mean(y_obs)) ** 2)
 
-    # R²
+    
     r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
 
-    # RMSE
+    
     rmse = np.sqrt(np.mean(residuals ** 2))
 
-    # MAE
+    
     mae = np.mean(np.abs(residuals))
 
-    # MAPE (avoid division by zero)
+    
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         mape = np.mean(np.abs(residuals / (y_obs + 1e-12))) * 100
@@ -82,7 +82,7 @@ def residual_autocorrelation(residuals: np.ndarray, max_lag: int = 20) -> Tuple[
     """
     from statsmodels.tsa.stattools import acf as sm_acf
 
-    # Remove NaNs
+    
     residuals = residuals[~np.isnan(residuals)]
 
     if len(residuals) < max_lag + 1:
@@ -118,7 +118,7 @@ def ljung_box_test(residuals: np.ndarray, lags: int = 10) -> Tuple[float, float]
         return np.nan, np.nan
 
     result = acorr_ljungbox(residuals, lags=lags, return_df=True)
-    # result is a DataFrame with columns 'lb_stat' and 'lb_pvalue'
+    
     statistic = result['lb_stat'].iloc[-1]
     p_value = result['lb_pvalue'].iloc[-1]
 
@@ -174,7 +174,7 @@ def breusch_pagan_test(residuals: np.ndarray, fitted: np.ndarray) -> Tuple[float
     if len(residuals) < 10:
         return np.nan, np.nan
 
-    # BP test requires exog matrix; use fitted values as single predictor
+    
     exog = np.column_stack([np.ones_like(fitted), fitted])
 
     try:
@@ -201,20 +201,20 @@ def run_all_diagnostics(
     -------
     diagnostics : dict with goodness-of-fit, residual tests, etc.
     """
-    # Goodness of fit
+    
     gof = compute_goodness_of_fit(y_obs, y_pred)
 
-    # Residuals
+    
     residuals = y_obs - y_pred
 
-    # Autocorrelation
+    
     lags, acf_vals = residual_autocorrelation(residuals, max_lag=20)
     lb_stat, lb_pval = ljung_box_test(residuals, lags=10)
 
-    # Normality
+    
     sw_stat, sw_pval = shapiro_wilk_test(residuals)
 
-    # Heteroskedasticity
+    
     bp_stat, bp_pval = breusch_pagan_test(residuals, y_pred)
 
     return {
@@ -292,31 +292,31 @@ def bootstrap_parameters(
     bootstrap_params = []
 
     for b in range(n_bootstrap):
-        # Randomly sample blocks with replacement
+        
         block_indices = np.random.choice(n_blocks, size=n_blocks, replace=True)
 
-        # Reconstruct time series from blocks
+        
         sample_indices = []
         for bi in block_indices:
             start = bi * block_size
             end = min(start + block_size, n)
             sample_indices.extend(range(start, end))
 
-        sample_indices = sample_indices[:n]  # ensure same length
+        sample_indices = sample_indices[:n]  
 
         tau_boot = tau[sample_indices]
         ell_boot = ell_obs[sample_indices]
         I_boot = I_obs[sample_indices]
         R_boot = R_obs[sample_indices]
 
-        # Sort by tau (bootstrap may disorder)
+        
         sort_idx = np.argsort(tau_boot)
         tau_boot = tau_boot[sort_idx]
         ell_boot = ell_boot[sort_idx]
         I_boot = I_boot[sort_idx]
         R_boot = R_boot[sort_idx]
 
-        # Fit
+        
         try:
             result = fit_func(tau_boot, ell_boot, I_boot, R_boot, **fit_kwargs)
             if result['success']:
@@ -325,7 +325,7 @@ def bootstrap_parameters(
                 bootstrap_params.append({k: np.nan for k in result['params'].keys()})
         except Exception as e:
             warnings.warn(f"Bootstrap iteration {b} failed: {e}")
-            # Append NaNs
+            
             if len(bootstrap_params) > 0:
                 bootstrap_params.append({k: np.nan for k in bootstrap_params[0].keys()})
 
@@ -404,16 +404,16 @@ def sensitivity_analysis_trade_size(
     for ts in trade_sizes:
         print(f"  Testing trade_size={ts}...")
 
-        # Recompute observables with this trade_size
+        
         df_obs = compute_observables_func(csv_path, jsonl_path, trade_size=ts)
 
-        # Extract data
+        
         tau = df_obs['tau_sec'].values if 'tau_sec' in df_obs.columns else np.arange(len(df_obs))
         D = df_obs['D'].values
         I = df_obs['I'].values
         R = df_obs['R'].values
 
-        # Fit
+        
         try:
             result = fit_func(tau, D, I, R, **fit_kwargs)
             if result['success']:
@@ -430,11 +430,11 @@ def sensitivity_analysis_trade_size(
 
 
 if __name__ == '__main__':
-    # Example: test diagnostics on synthetic data
+    
     np.random.seed(42)
 
     y_obs = np.random.randn(100) + 5.0
-    y_pred = y_obs + np.random.randn(100) * 0.1  # small noise
+    y_pred = y_obs + np.random.randn(100) * 0.1  
 
     diagnostics = run_all_diagnostics(y_obs, y_pred)
 

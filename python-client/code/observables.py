@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 observables.py
 
@@ -63,46 +63,46 @@ def compute_liquidity_from_book(
     if not bids or not asks:
         return np.nan, np.nan, np.nan
 
-    # Midpoint
+    
     best_bid = max(p for p, _ in bids)
     best_ask = min(p for p, _ in asks)
     mid = 0.5 * (best_bid + best_ask)
 
-    # --- Buy-side (walk asks) ---
+    
     cumulative = 0.0
     cost = 0.0
-    for price, size in sorted(asks, key=lambda x: x[0]):  # ascending price
+    for price, size in sorted(asks, key=lambda x: x[0]):  
         if cumulative >= trade_size:
             break
         take = min(size, trade_size - cumulative)
         cost += take * price
         cumulative += take
 
-    if cumulative < trade_size * 0.99:  # insufficient depth
+    if cumulative < trade_size * 0.99:  
         ell_buy = np.nan
     else:
         vwap_buy = cost / cumulative
         delta_p_buy = vwap_buy - mid
         ell_buy = delta_p_buy / trade_size
 
-    # --- Sell-side (walk bids) ---
+    
     cumulative = 0.0
     revenue = 0.0
-    for price, size in sorted(bids, key=lambda x: -x[0]):  # descending price
+    for price, size in sorted(bids, key=lambda x: -x[0]):  
         if cumulative >= trade_size:
             break
         take = min(size, trade_size - cumulative)
         revenue += take * price
         cumulative += take
 
-    if cumulative < trade_size * 0.99:  # insufficient depth
+    if cumulative < trade_size * 0.99:  
         ell_sell = np.nan
     else:
         vwap_sell = revenue / cumulative
         delta_p_sell = mid - vwap_sell
         ell_sell = delta_p_sell / trade_size
 
-    # Symmetric average
+    
     if np.isnan(ell_buy) and np.isnan(ell_sell):
         ell_avg = np.nan
     elif np.isnan(ell_buy):
@@ -129,8 +129,8 @@ def parse_order_book_from_row(row: pd.Series, jsonl_path: str = None) -> Tuple[l
     bids : list of (price, size)
     asks : list of (price, size)
     """
-    # Placeholder: in practice you'd load the corresponding JSONL line by timestamp
-    # For this template, return empty
+    
+    
     return [], []
 
 
@@ -154,7 +154,7 @@ def compute_liquidity_series(
     """
     import json
 
-    # Load JSONL into a dictionary keyed by timestamp for fast lookup
+    
     snapshots = {}
     with open(jsonl_path, 'r') as f:
         for line in f:
@@ -165,7 +165,7 @@ def compute_liquidity_series(
                 msg = json.loads(line)
                 data = msg.get('data', msg)
 
-                # Extract timestamp
+                
                 ts_ms = None
                 if 'timestamp' in msg and isinstance(msg['timestamp'], (int, float)):
                     ts_ms = int(msg['timestamp'])
@@ -181,7 +181,7 @@ def compute_liquidity_series(
                 if ts_ms is None:
                     continue
 
-                # Parse bids & asks
+                
                 bids_raw = data.get('bids', [])
                 asks_raw = data.get('asks', [])
 
@@ -207,7 +207,7 @@ def compute_liquidity_series(
             except:
                 continue
 
-    # Now compute liquidity for each row in df
+    
     results = []
     for idx, row in df.iterrows():
         ts_ms = row['timestamp_ms']
@@ -247,16 +247,16 @@ def compute_trading_intensity_depth_change(df: pd.DataFrame, depth_col: str = 't
     depth = df[depth_col].values
     ts_ms = df['timestamp_ms'].values
 
-    # Compute differences
+    
     delta_depth = np.abs(np.diff(depth))
-    delta_t_sec = np.diff(ts_ms) / 1000.0  # convert ms to seconds
+    delta_t_sec = np.diff(ts_ms) / 1000.0  
 
-    # Avoid division by zero
+    
     delta_t_sec = np.maximum(delta_t_sec, 1e-6)
 
     I_depth = delta_depth / delta_t_sec
 
-    # Prepend NaN for first point (no previous to diff from)
+    
     I_depth = np.concatenate([[np.nan], I_depth])
 
     return pd.Series(I_depth, index=df.index, name='I_depth')
@@ -280,7 +280,7 @@ def compute_trading_intensity_signed(df: pd.DataFrame) -> pd.Series:
     ask_size = df['best_ask_size'].values
     ts_ms = df['timestamp_ms'].values
 
-    delta_bid = -np.diff(bid_size)  # negative change = removal
+    delta_bid = -np.diff(bid_size)  
     delta_ask = -np.diff(ask_size)
 
     removals = np.maximum(delta_bid, 0) + np.maximum(delta_ask, 0)
@@ -319,8 +319,8 @@ def compute_liquidity_from_spread_volume(df: pd.DataFrame) -> pd.Series:
     spread = df['spread'].values
     volume_proxy = df['top5_depth_sum'].values
 
-    # liq = spread / volume
-    # Avoid division by zero
+    
+    
     ell = np.where(volume_proxy > 0, spread / volume_proxy, np.nan)
 
     return pd.Series(ell, index=df.index, name='ell_avg')
@@ -354,20 +354,20 @@ def compute_all_observables(
         - D (depth) - INDEPENDENT VARIABLE
         - I (trading intensity) - INDEPENDENT VARIABLE
     """
-    # Load CSV
+    
     df = pd.read_csv(csv_path)
 
-    # Compute spread (DEPENDENT VARIABLE)
+    
     df['R'] = compute_spread(df, normalized=normalized_spread)
 
-    # Compute depth (INDEPENDENT VARIABLE - inverse liquidity proxy)
+    
     df['D'] = df['top5_depth_sum']
 
-    # Compute intensity proxies (INDEPENDENT VARIABLE)
+    
     df['I_depth'] = compute_trading_intensity_depth_change(df)
     df['I_signed'] = compute_trading_intensity_signed(df)
 
-    # Default combined intensity
+    
     df['I'] = df['I_depth']
 
     return df
@@ -417,11 +417,11 @@ def resample_regular_grid(
     tau_max = df[tau_col].max()
     tau_grid = np.linspace(tau_min, tau_max, n_points)
 
-    # Interpolate each observable
+    
     data = {tau_col: tau_grid}
     for obs in observables:
         if obs in df.columns:
-            # Linear interpolation
+            
             data[obs] = np.interp(tau_grid, df[tau_col].values, df[obs].values, left=np.nan, right=np.nan)
         else:
             data[obs] = np.full(n_points, np.nan)
@@ -448,7 +448,7 @@ def smooth_series(series: pd.Series, window: int = 3, method: str = 'moving_aver
         return series.rolling(window=window, center=True, min_periods=1).mean()
     elif method == 'savgol':
         from scipy.signal import savgol_filter
-        # Need odd window
+        
         if window % 2 == 0:
             window += 1
         return pd.Series(
@@ -460,7 +460,7 @@ def smooth_series(series: pd.Series, window: int = 3, method: str = 'moving_aver
 
 
 if __name__ == '__main__':
-    # Example usage
+    
     import sys
 
     if len(sys.argv) < 3:
@@ -475,11 +475,11 @@ if __name__ == '__main__':
 
     df_obs = compute_all_observables(csv_path, jsonl_path, trade_size=trade_size)
 
-    # Save to CSV
+    
     out_path = csv_path.replace('.csv', '_observables.csv')
     df_obs.to_csv(out_path, index=False)
     print(f"Saved observables to {out_path}")
 
-    # Print summary stats
+    
     print("\nSummary statistics:")
     print(df_obs[['R', 'ell_avg', 'I_depth', 'I_signed']].describe())

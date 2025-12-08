@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 model.py
 
@@ -55,13 +55,13 @@ def ode_bounded(tau, ell, a, b, c, d, ell_max, ell_min, I_func, R_func):
     I_val = I_func(tau)
     R_val = R_func(tau)
 
-    # External forcing
+    
     forcing = a * I_val - b * R_val
 
-    # Logistic growth term
+    
     logistic = c * ell * (1.0 - ell / ell_max) if ell_max > 0 else c * ell
 
-    # Floor penalty
+    
     floor_penalty = d * max(ell_min - ell, 0.0)
 
     return forcing + logistic - floor_penalty
@@ -95,12 +95,12 @@ def integrate_ode_linear(
     """
     def rhs(tau, R):
         val = np.array([ ode_linear(tau, R[0], a, b, c, I_func, D_func) ], dtype=float)
-        # if not np.isfinite(val):
-            # print("NONFINITE RHS:", tau, R[0], val,
-            # I_func(tau), D_func(tau))
+        
+            
+            
         return val
 
-    # solve_ivp expects t_span and t_eval
+    
     tau_span = (tau_grid[0], tau_grid[-1])
 
     sol = solve_ivp(
@@ -198,10 +198,10 @@ def analytic_solution_linear_constant_forcing(
     forcing = a * I_const - b * R_const
 
     if abs(c) < 1e-12:
-        # Linear growth
+        
         return ell0 + forcing * tau
     else:
-        # Exponential integrating factor
+        
         exp_c_tau = np.exp(c * tau)
         integral_term = forcing / c * (1.0 - np.exp(-c * tau))
         return exp_c_tau * (ell0 + integral_term)
@@ -264,7 +264,7 @@ class LiquidityModel:
 
 
 if __name__ == '__main__':
-    # Example: test integration with dummy constant inputs
+    
     tau = np.linspace(0, 100, 500)
     ell0 = 0.001
     a, b, c = 0.00001, 0.1, -0.01
